@@ -1,0 +1,41 @@
+header {
+    position: sticky;
+
+    z-index: 5;
+    top: 0;
+
+    height: 4rem;
+    width: 100%;
+
+    padding: 1rem 3rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    background-color: #23252b;
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        img {
+            height: 2rem;
+            width: auto;
+        }
+
+        h1 {
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+
+        color: #ff5957;
+        transition: 0.3s;
+    }
+
+    .logo:hover {
+        color: white;
+        cursor: pointer;
+    }
+}

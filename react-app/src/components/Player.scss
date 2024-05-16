@@ -1,0 +1,169 @@
+.player {
+    --top: 4rem;
+
+    position: fixed;
+    top: var(--top);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+
+    width: 100%;
+    height: calc(100% - var(--top));
+    transition: 0.3s;
+
+    color: white;
+    background-color: black;
+
+    display: flex;
+    justify-content: flex-end;
+    flex-direction: column;
+
+    .other-controls {
+        position: absolute;
+        z-index: 20;
+        top: 0;
+        left: 0;
+
+        width: 100%;
+    }
+
+    canvas {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 5;
+    
+        transform: translate(-50%, -50%);
+
+        width: 100%;
+        height: 100%;
+    
+        max-height: 100%;
+        max-width: 100%;
+    }
+
+    .canvas-blocker {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 10;
+    
+        transform: translate(-50%, -50%);
+
+        width: 100%;
+        height: 100%;
+    
+        max-height: 100%;
+        max-width: 100%;
+    }
+    
+    @media (max-aspect-ratio: 16/9) {
+        canvas {
+            height: auto;
+        }
+    }
+      
+    @media (min-aspect-ratio: 16/9) {
+        canvas {
+            width: auto;
+        }
+    }
+
+    @media (aspect-ratio: 16/9) {
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+    }
+
+    .player-controls {
+        position: absolute;
+        z-index: 15;
+        bottom: 0;
+        left: 0;
+
+        width: 100%;
+        padding: 1rem;
+
+        background: linear-gradient(transparent, black);
+        user-select: none;
+        transition: 0.3s;
+
+        .progress {
+            display: flex;
+            align-items: center;
+            // margin-bottom: 1rem;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            align-items: center;
+
+            // .playback-controls .media-info .adjustable {
+            //     display: flex;
+            // }
+
+            .media-info {
+                text-align: center;
+            }
+
+            .adjustable {
+                text-align: right;
+            }
+
+            svg {
+                font-size: 2rem;
+                padding: 1rem;
+
+                cursor: pointer;
+            }
+        }
+    }
+}
+
+.volume-popover {
+    .volume-slider {
+        color: #ff5957;
+        height: 10rem;
+        margin: 2rem 2rem 1rem;
+    }
+
+    p {
+        margin: 1rem;
+        text-align: center;
+    }
+}
+
+.remote-popover {
+    ul {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: center;
+
+        color: black;
+        
+        li {
+            cursor: pointer;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+    }
+}
+
+.MuiListItemText-primary {
+    color: black;
+}
+
+.MuiMenuItem-root {
+    width: 100%;
+}
+
+.MuiSlider-markLabel {
+    color: rgba(white, 0.65) !important;
+}
+
+.MuiSlider-markLabelActive {
+    color: white !important;
+}

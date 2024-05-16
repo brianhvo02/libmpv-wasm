@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker run -it --name libmpv-build -v .:/src emscripten/emsdk \
+    /bin/bash -c "/src/scripts/docker_update"

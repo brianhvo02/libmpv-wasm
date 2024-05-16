@@ -1,0 +1,6 @@
+#!/bin/bash
+
+pip3 install meson
+apt update
+apt install -y automake libtool gperf gettext autopoint llvm
+npm --prefix /emsdk/upstream/emscripten install

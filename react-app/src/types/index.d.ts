@@ -20,8 +20,9 @@ interface Track {
     id: number;
     type: string;
     srcId: number;
-    title: string;
-    lang: string;
+    programId?: number;
+    title?: string;
+    lang?: string;
     image: number;
     albumart: number;
     default: number;

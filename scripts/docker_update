@@ -2,5 +2,5 @@
 
 pip3 install meson
 apt update
-apt install -y automake libtool gperf gettext autopoint llvm
+apt install -y automake libtool gperf gettext autopoint llvm pkg-config ninja-build
 npm --prefix /emsdk/upstream/emscripten install

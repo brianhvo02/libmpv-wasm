@@ -1,15 +1,12 @@
 import './Player.scss';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMessage, faMusic, faPause, faPlay, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime, isAudioTrack, isVideoTrack } from '../utils';
 import { Check } from '@mui/icons-material';
-import libmpvLoader from '../libmpv.js';
-import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MainModule } from '../types/interface';
 import _ from 'lodash';
-
-const LIMIT = 2 * 1000 * 1000 * 1000; // 2 GB
 
 const anchorOrigin: PopoverOrigin = {
     vertical: 'top',
@@ -21,28 +18,23 @@ const transformOrigin: PopoverOrigin = {
     horizontal: 'center'
 }
 
-const Player = () => {
-    const [libmpv, setLibmpv] = useState<MainModule>();
-    const [files, setFiles] = useState<string[]>([]);
-    const [selectedFilename, setSelectedFilename] = useState('');
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const divRef = useRef<HTMLDivElement>(null);
-    const workerRef = useRef<Worker>();
-    const ranOnce = useRef(false);
+interface PlayerProps {
+    libmpv?: MainModule;
+    title: string;
+    canvasRef: RefObject<HTMLCanvasElement>;
+    playerRef: RefObject<HTMLDivElement>;
+}
 
-    const isSeeking = useRef(false);
+const Player = ({ libmpv, title, canvasRef, playerRef }: PlayerProps) => {
+    const [mouseIsMoving, setMouseIsMoving] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [volumeMenu, setVolumeMenu] = useState(false);
+    const [videoMenu, setVideoMenu] = useState(false);
     const [audioMenu, setAudioMenu] = useState(false);
     const [subsMenu, setSubsMenu] = useState(false);
     const [volume, setVolume] = useState(1);
-    const volumeRef = useRef<SVGSVGElement>(null);
-    const audioMenuRef = useRef<SVGSVGElement>(null);
-    const subsMenuRef = useRef<SVGSVGElement>(null);
-    
-    const [title, setTitle] = useState('');
 
     const [videoStream, setVideoStream] = useState(1);
     const [videoTracks, setVideoTracks] = useState<VideoTrack[]>([]);
@@ -53,10 +45,15 @@ const Player = () => {
     const [subtitleStream, setSubtitleStream] = useState(1);
     const [subtitleTracks, setSubtitleTracks] = useState<Track[]>();
 
-    const [extSubStream, setExtSubStream] = useState('');
+    // const [extSubStream, setExtSubStream] = useState('');
 
-    const [mouseIsMoving, setMouseIsMoving] = useState(false);
+    const volumeRef = useRef<SVGSVGElement>(null);
+    const videoMenuRef = useRef<SVGSVGElement>(null);
+    const audioMenuRef = useRef<SVGSVGElement>(null);
+    const subsMenuRef = useRef<SVGSVGElement>(null);
+    const isSeeking = useRef(false);
     const mouseTimeout = useRef<NodeJS.Timeout>();
+    const workerRef = useRef<Worker>();
 
     // const [isFullscreen, setIsFullscreen] = useState(false);
     // const toggleFullscreen = useCallback(() => isFullscreen
@@ -89,156 +86,90 @@ const Player = () => {
     }, [mouseIsMoving]);
 
     useEffect(() => {
-        if (!canvasRef.current || ranOnce.current) return;
-
-        libmpvLoader({
-            canvas: canvasRef.current,
-            mainScriptUrlOrBlob: '/static/js/libmpv.js',
-        }).then(setLibmpv);
-
-        navigator.storage.getDirectory()
-            .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-            .then(dirHandle => Array.fromAsync(dirHandle.keys()))
-            .then(setFiles);
-
-        // const onFullscreenChange = () => setIsFullscreen(prev => !prev);
-        // document.addEventListener('fullscreenchange', onFullscreenChange);
-
-        ranOnce.current = true;
-    }, []);
-
-    useEffect(() => {
         if (!libmpv || workerRef.current) return;
 
         const pthreads = libmpv.PThread.unusedWorkers.concat(libmpv.PThread.runningWorkers);
-        const fsWorker = pthreads.find((worker: any) => worker.workerID === pthreads.length - 1);
-        const mpvWorker = pthreads.find((worker: any) => worker.workerID === pthreads.length);
+        const worker = pthreads.find((worker: any) => worker.workerID === pthreads.length);
 
         const listener = (e: MessageEvent) => {
-            const payload = JSON.parse(e.data);
-            switch (payload.type) {
-                case 'upload':
-                    libmpv.loadFile(payload.name);
-                    setTitle(payload.name);
-                    break;
-                case 'playback-restart':
-                    console.log('event: playback-restart');
-                    setIsPlaying(true);
-                    break;
-                case 'property-change':
-                    switch (payload.name) {
-                        case 'pause':
-                            setIsPlaying(!payload.value);
-                            break;
-                        case 'duration':
-                            setDuration(payload.value);
-                            break;
-                        case 'playback-time':
-                            if (!isSeeking.current)
-                                setElapsed(payload.value);
-                            break;
-                        case 'vid':
-                            setVideoStream(payload.value);
-                            break;
-                        case 'aid':
-                            setAudioStream(payload.value);
-                            break;
-                        case 'sid':
-                            setSubtitleStream(payload.value);
-                            break;
-                        default:
-                            console.log(`event: property-change -> { name: ${
-                                payload.name
-                            }, value: ${payload.value} }`);
-                    }
-                    break;
-                case 'track-list':
-                    const tracks: Track[] = payload.tracks
-                        .map((track: any) => _.mapKeys(track, (v, k) => _.camelCase(k)));
-                    const { videoTracks, audioTracks, subtitleTracks } = tracks.reduce(
-                        (map: { 
-                            videoTracks: VideoTrack[], 
-                            audioTracks: AudioTrack[], 
-                            subtitleTracks: Track[]
-                        }, track) => {
-                            if (isVideoTrack(track))
-                                map.videoTracks.push(track);
-                            else if (isAudioTrack(track))
-                                map.audioTracks.push(track);
-                            else
-                                map.subtitleTracks.push(track);
-
-                            return map;
-                        }, {
-                            videoTracks: [], 
-                            audioTracks: [], 
-                            subtitleTracks: []
+            try {
+                const payload = JSON.parse(e.data);
+                switch (payload.type) {
+                    case 'property-change':
+                        switch (payload.name) {
+                            case 'pause':
+                                setIsPlaying(!payload.value);
+                                break;
+                            case 'duration':
+                                setDuration(payload.value);
+                                break;
+                            case 'playback-time':
+                                if (!isSeeking.current)
+                                    setElapsed(payload.value);
+                                break;
+                            case 'vid':
+                                setVideoStream(payload.value);
+                                break;
+                            case 'aid':
+                                setAudioStream(payload.value);
+                                break;
+                            case 'sid':
+                                setSubtitleStream(payload.value);
+                                break;
+                            default:
+                                console.log(`event: property-change -> { name: ${
+                                    payload.name
+                                }, value: ${payload.value} }`);
                         }
-                    );
-                    setVideoTracks(videoTracks);
-                    setAudioTracks(audioTracks);
-                    setSubtitleTracks(subtitleTracks);
-                    break;
-                default:
-                    console.log('Recieved payload:', payload);
+                        break;
+                    case 'track-list':
+                        const tracks: Track[] = payload.tracks
+                            .map((track: any) => _.mapKeys(track, (v, k) => _.camelCase(k)));
+                            
+                        const { videoTracks, audioTracks, subtitleTracks } = tracks.reduce(
+                            (map: { 
+                                videoTracks: VideoTrack[], 
+                                audioTracks: AudioTrack[], 
+                                subtitleTracks: Track[]
+                            }, track) => {
+                                if (isVideoTrack(track))
+                                    map.videoTracks.push(track);
+                                else if (isAudioTrack(track))
+                                    map.audioTracks.push(track);
+                                else
+                                    map.subtitleTracks.push(track);
+
+                                return map;
+                            }, {
+                                videoTracks: [], 
+                                audioTracks: [], 
+                                subtitleTracks: []
+                            }
+                        );
+                        setVideoTracks(videoTracks);
+                        setAudioTracks(audioTracks);
+                        setSubtitleTracks(subtitleTracks);
+                        break;
+                    default:
+                        console.log('Recieved payload:', payload);
+                }
+            } catch (err) {
+                // console.error(err);
+                // console.log(e.data);
             }
         }
 
-        fsWorker.addEventListener('message', listener);
-        mpvWorker.addEventListener('message', listener);
+        worker.addEventListener('message', listener);
 
-        workerRef.current = fsWorker;
+        workerRef.current = worker;
     }, [libmpv]);
-
-    useEffect(() => {
-        if (!libmpv || !selectedFilename.length) return;
-
-        libmpv.loadFile('/share/mnt/' + selectedFilename);
-        setTitle(selectedFilename);
-    }, [libmpv, selectedFilename]);
-
-    const handleUpload = async () => {
-        if (!workerRef.current) return;
-
-        const files = await showOpenFilePicker()
-            .catch(e => console.error(e));
-
-        if (!files?.length)
-            return;
-
-        const file = await files[0].getFile();
-        if (file.size > LIMIT) {
-            const splitFiles = [];
-            const count = Math.ceil(file.size / LIMIT);
-
-            for (let i = 0; i < count; i++) {
-                const blobSlice = file.slice(LIMIT * i, (i + 1 === count) ? file.size : LIMIT * (i + 1));
-                splitFiles.push(new File([blobSlice], file.name));
-            }
-
-            workerRef.current.postMessage(splitFiles);
-        } else {
-            workerRef.current.postMessage([file]);
-        }
-    }
                         
     return (
-        <div className='player' ref={divRef}
+        <div className='player' ref={playerRef}
             // onDoubleClick={toggleFullscreen}
         >
             <canvas id='canvas' ref={canvasRef} />
-            <div className="canvas-blocker"></div>
-            { libmpv && 
-            <div className='other-controls'>
-                <button onClick={handleUpload}>Upload</button>
-                <select value={selectedFilename}
-                    onChange={e => setSelectedFilename(e.target.value)}>
-                    <option value=''></option>
-                    { files.sort().map(filename =>
-                        <option key={filename} value={filename}>{filename}</option>
-                    ) }
-                </select>
-            </div> }
+            <div className="canvas-blocker" onClick={() => libmpv?.togglePlay()} />
             { libmpv &&
             <div className='player-controls' style={{ opacity: Number(mouseIsMoving) }}>
                 <div className='progress'>
@@ -293,7 +224,7 @@ const Player = () => {
                             anchorOrigin={anchorOrigin}
                             transformOrigin={transformOrigin}
                             sx={{backgroundColor: 'transparent'}}
-                            container={divRef.current}
+                            container={playerRef.current}
                         >
                             <Slider
                                 className='volume-slider'
@@ -314,6 +245,41 @@ const Player = () => {
                             <p>{Math.floor(volume * 100)}</p>
                         </Popover>
                         {
+                            videoTracks && videoTracks.length > 1 &&
+                            <>
+                                <FontAwesomeIcon 
+                                    icon={faVideo}
+                                    ref={videoMenuRef}
+                                    onClick={() => setVideoMenu(true)}
+                                    style={pointerStyle}
+                                    color={videoMenu ? '#ff5957' : 'white'}
+                                />
+                                <Menu
+                                    anchorEl={videoMenuRef.current}
+                                    anchorOrigin={anchorOrigin}
+                                    transformOrigin={transformOrigin}
+                                    open={audioMenu}
+                                    onClose={() => setVideoMenu(false)}
+                                    container={playerRef.current}
+                                >
+                                    {videoTracks.map((track) => (
+                                    <MenuItem key={`video_${track.id}`} 
+                                        onClick={() => libmpv.setVideoTrack(track.id)}>
+                                        {
+                                            videoStream === track.id &&
+                                            <ListItemIcon>
+                                                <Check />
+                                            </ListItemIcon>
+                                        }
+                                        <ListItemText inset={videoStream !== track.id}>
+                                            {track.title ?? 'Video Track ' + track.id}
+                                        </ListItemText>
+                                    </MenuItem>
+                                    ))}
+                                </Menu>
+                            </>
+                        }
+                        {
                             audioTracks && audioTracks.length > 1 &&
                             <>
                                 <FontAwesomeIcon 
@@ -329,7 +295,7 @@ const Player = () => {
                                     transformOrigin={transformOrigin}
                                     open={audioMenu}
                                     onClose={() => setAudioMenu(false)}
-                                    container={divRef.current}
+                                    container={playerRef.current}
                                 >
                                     {audioTracks.map((track) => (
                                     <MenuItem key={`audio_${track.id}`} 
@@ -341,14 +307,14 @@ const Player = () => {
                                             </ListItemIcon>
                                         }
                                         <ListItemText inset={audioStream !== track.id}>
-                                            {track.title} ({track.lang})
+                                            {track.title ?? 'Audio Track ' + track.id} ({track.lang ?? 'und'})
                                         </ListItemText>
                                     </MenuItem>
                                     ))}
                                 </Menu>
                             </>
                         }
-                        { subtitleTracks && subtitleTracks.length > 1 && <>
+                        { subtitleTracks && subtitleTracks.length > 0 && <>
                         <FontAwesomeIcon 
                             icon={faMessage} 
                             ref={subsMenuRef}
@@ -362,16 +328,16 @@ const Player = () => {
                             transformOrigin={transformOrigin}
                             open={subsMenu}
                             onClose={() => setSubsMenu(false)}
-                            container={divRef.current}
+                            container={playerRef.current}
                         >
                             <MenuItem onClick={() => libmpv.setSubtitleTrack(0)}>
                                 {
-                                    !(subtitleStream + extSubStream.length) &&
+                                    !subtitleStream &&
                                     <ListItemIcon>
                                         <Check />
                                     </ListItemIcon>
                                 }
-                                <ListItemText inset={subtitleStream + extSubStream.length > 0}>
+                                <ListItemText inset={subtitleStream > 0}>
                                     None
                                 </ListItemText>
                             </MenuItem>
@@ -386,7 +352,7 @@ const Player = () => {
                                             </ListItemIcon>
                                         }
                                         <ListItemText inset={subtitleStream !== track.id}>
-                                            {track.title} ({track.lang})
+                                            {track.title ?? 'Subtitle Track ' + track.id} ({track.lang ?? 'und'})
                                         </ListItemText>
                                     </MenuItem>
                                 ))

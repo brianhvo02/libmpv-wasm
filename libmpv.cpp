@@ -97,9 +97,6 @@ void main_loop() {
                         case MPV_EVENT_FILE_LOADED:
                             mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
                             break;
-                        case MPV_EVENT_PLAYBACK_RESTART:
-                            EM_ASM(postMessage(JSON.stringify({ type: 'playback-restart' })););
-                            break;
                         case MPV_EVENT_GET_PROPERTY_REPLY:
                         case MPV_EVENT_PROPERTY_CHANGE: {
                             mpv_event_property *evt = (mpv_event_property*)mp_event->data;
@@ -153,25 +150,21 @@ void main_loop() {
                                                 node = map->values[j];
                                                 switch (node.format) {
                                                     case MPV_FORMAT_INT64:
-                                                        // printf("%s: %llu\n", map->keys[j], node.u.int64);
                                                         EM_ASM({
                                                             track[UTF8ToString($0)] = $1;
                                                         }, map->keys[j], (int)node.u.int64);
                                                         break;
                                                     case MPV_FORMAT_STRING:
-                                                        // printf("%s: %s\n", map->keys[j], node.u.string);
                                                         EM_ASM({
                                                             track[UTF8ToString($0)] = UTF8ToString($1);
                                                         }, map->keys[j], node.u.string);
                                                         break;
                                                     case MPV_FORMAT_FLAG:
-                                                        // printf("%s: %d\n", map->keys[j], node.u.flag);
                                                         EM_ASM({
                                                             track[UTF8ToString($0)] = $1;
                                                         }, map->keys[j], node.u.flag);
                                                         break;
                                                     case MPV_FORMAT_DOUBLE:
-                                                        // printf("%s: %f\n", map->keys[j], node.u.double_);
                                                         EM_ASM({
                                                             track[UTF8ToString($0)] = $1;
                                                         }, map->keys[j], (int)node.u.double_);
@@ -218,6 +211,10 @@ void main_loop() {
 }
 
 void init_mpv() {
+    EM_ASM(
+        console.log('MPV worker id:', workerID);
+    );
+
     mpv = mpv_create();
     if (!mpv) {
         die("context init failed");
@@ -229,7 +226,7 @@ void init_mpv() {
         die("mpv init failed");
     }
 
-    // mpv_request_log_messages(mpv, "v");
+    mpv_request_log_messages(mpv, "debug");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 
@@ -329,24 +326,19 @@ void set_subtitle_track(int idx) {
 
 void* load_fs(void *args) {
     EM_ASM(
+        console.log('FS worker id:', workerID);
         onmessage = async e => {
-            let at = 0;
-            const accessHandle = await navigator.storage.getDirectory()
-                .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-                .then(dirHandle => dirHandle.getFileHandle(e.data[0].name, { create: true }))
-                .then(fileHandle => fileHandle.createSyncAccessHandle());
-
-            for (let i = 0; i < e.data.length; i++) {
-                console.log('Reading ' + (i + 1) + ' of ' + e.data.length + ' parts.');
-
-                const file = e.data[i];
-                const fileBuf = await file.arrayBuffer();
-                accessHandle.write(fileBuf, { at });
-                at += file.size;
-
-                if (e.data.length === i + 1)
-                    postMessage(JSON.stringify({ type: 'upload', name: '/share/mnt/' + file.name }));
+            for (const file of e.data) {
+                const writable = await navigator.storage.getDirectory()
+                    .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
+                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }))
+                    .then(accessHandle => accessHandle.createWritable());
+                console.log('Writing', file.name);
+                await writable.write(file);
+                await writable.close();
             }
+
+            postMessage(JSON.stringify({ type: 'upload' }));
         }
     );
 

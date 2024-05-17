@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+
+mkdir -p build
+
 BUILD_CMD="emcc -pthread -Impv-build/build_libs/include --emit-tsd interface.d.ts \
     -lembind -lopenal -lopfs.js -sENVIRONMENT=web,worker \
     -sWASMFS -sFORCE_FILESYSTEM -sMODULARIZE -sEXPORTED_RUNTIME_METHODS=['FS','PThread'] -sEXPORT_NAME='libmpvLoader' \

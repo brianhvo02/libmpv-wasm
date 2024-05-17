@@ -1,4 +1,6 @@
 #!/bin/bash
 
-docker run -it --name libmpv-build -v .:/src emscripten/emsdk \
-    /bin/bash -c "/src/scripts/docker_update"
+docker run -dit --name libmpv-build -v .:/src emscripten/emsdk /bin/bash 
+docker exec -it libmpv-build scripts/docker_update 
+docker exec -it -u "$(id -u):$(id -g)" -w /src/mpv-build libmpv-build ./rebuild bash -c "./rebuild && ./install"
+docker exec -it -u "$(id -u):$(id -g)" libmpv-build ./scripts/build_wasm

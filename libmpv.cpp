@@ -23,37 +23,33 @@
 #include <AL/alc.h>
 
 using namespace emscripten;
-namespace fs = std::filesystem;
+using namespace std;
 
 static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
 SDL_Window *window;
 mpv_handle *mpv;
 mpv_render_context *mpv_gl;
 
-static void die(const char *msg)
-{
+static void die(const char *msg) {
     fprintf(stderr, "%s\n", msg);
     exit(1);
 }
 
-static void *get_proc_address_mpv(void *fn_ctx, const char *name)
-{
+static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
     return (void *)SDL_GL_GetProcAddress(name);
 }
 
-static void on_mpv_events(void *ctx)
-{
+static void on_mpv_events(void *ctx) {
     SDL_Event event = {.type = wakeup_on_mpv_events};
     SDL_PushEvent(&event);
 }
 
-static void on_mpv_render_update(void *ctx)
-{
+static void on_mpv_render_update(void *ctx) {
     SDL_Event event = {.type = wakeup_on_mpv_render_update};
     SDL_PushEvent(&event);
 }
 
-void terminate() {
+void quit() {
     mpv_render_context_free(mpv_gl);
     mpv_destroy(mpv);
 
@@ -73,7 +69,7 @@ void main_loop() {
     int redraw = 0;
     switch (event.type) {
         case SDL_EVENT_QUIT:
-            terminate();
+            quit();
         case SDL_EVENT_WINDOW_EXPOSED:
             redraw = 1;
             break;
@@ -89,6 +85,9 @@ void main_loop() {
                     if (mp_event->event_id == MPV_EVENT_NONE)
                         break;
                     switch (mp_event->event_id) {
+                        case MPV_EVENT_IDLE:
+                            EM_ASM(postMessage(JSON.stringify({ type: 'idle' })););
+                            break;
                         case MPV_EVENT_LOG_MESSAGE: {
                             mpv_event_log_message *msg = (mpv_event_log_message*)mp_event->data;
                             printf("log: %s", msg->text);
@@ -211,10 +210,6 @@ void main_loop() {
 }
 
 void init_mpv() {
-    EM_ASM(
-        console.log('MPV worker id:', workerID);
-    );
-
     mpv = mpv_create();
     if (!mpv) {
         die("context init failed");
@@ -226,7 +221,7 @@ void init_mpv() {
         die("mpv init failed");
     }
 
-    mpv_request_log_messages(mpv, "debug");
+    // mpv_request_log_messages(mpv, "debug");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 
@@ -279,11 +274,11 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_DOUBLE);
 }
 
-void load_file(std::string filename) {
+void load_file(string filename) {
     const char * char_filename = filename.c_str();
     printf("loading %s\n", char_filename);
     
-    if (!fs::exists(char_filename)) {
+    if (!filesystem::exists(char_filename)) {
         printf("file does not exist");
         return;
     }
@@ -326,7 +321,6 @@ void set_subtitle_track(int idx) {
 
 void* load_fs(void *args) {
     EM_ASM(
-        console.log('FS worker id:', workerID);
         onmessage = async e => {
             for (const file of e.data) {
                 const writable = await navigator.storage.getDirectory()
@@ -345,13 +339,13 @@ void* load_fs(void *args) {
     return NULL;
 }
 
-void readdir() {
-    for (const auto & entry : fs::directory_iterator("/share/mnt"))
-        printf("%s\n", entry.path().c_str());
+pthread_t fs_thread;
+
+intptr_t get_fs_thread() {
+    return (intptr_t)fs_thread;
 }
 
 int main(int argc, char const *argv[]) {
-    pthread_t fs_thread;
     pthread_create(&fs_thread, NULL, load_fs, NULL);
 
     backend_t opfs = wasmfs_create_opfs_backend();
@@ -365,14 +359,14 @@ int main(int argc, char const *argv[]) {
 }
 
 EMSCRIPTEN_BINDINGS(libmpv) {
-    function("mpvInit", &init_mpv);
-    function("loadFile", &load_file);
-    function("togglePlay", &toggle_play);
-    function("setPlaybackTime", &set_playback_time_pos);
-    function("setVolume", &set_ao_volume);
-    function("readdir", &readdir);
-    function("getTracks", &get_tracks);
-    function("setVideoTrack", &set_video_track);
-    function("setAudioTrack", &set_audio_track);
-    function("setSubtitleTrack", &set_subtitle_track);
+    emscripten::function("mpvInit", &init_mpv);
+    emscripten::function("loadFile", &load_file);
+    emscripten::function("togglePlay", &toggle_play);
+    emscripten::function("setPlaybackTime", &set_playback_time_pos);
+    emscripten::function("setVolume", &set_ao_volume);
+    emscripten::function("getTracks", &get_tracks);
+    emscripten::function("setVideoTrack", &set_video_track);
+    emscripten::function("setAudioTrack", &set_audio_track);
+    emscripten::function("setSubtitleTrack", &set_subtitle_track);
+    emscripten::function("getFsThread", &get_fs_thread);
 }

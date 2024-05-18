@@ -4,8 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime, isAudioTrack, isVideoTrack } from '../utils';
 import { Check } from '@mui/icons-material';
-import { CSSProperties, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MainModule } from '../types/interface';
+import { CSSProperties, Dispatch, RefObject, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import _ from 'lodash';
 
 const anchorOrigin: PopoverOrigin = {
@@ -19,13 +18,14 @@ const transformOrigin: PopoverOrigin = {
 }
 
 interface PlayerProps {
-    libmpv?: MainModule;
+    libmpv?: any;
     title: string;
     canvasRef: RefObject<HTMLCanvasElement>;
     playerRef: RefObject<HTMLDivElement>;
+    setIdle: Dispatch<SetStateAction<boolean>>
 }
 
-const Player = ({ libmpv, title, canvasRef, playerRef }: PlayerProps) => {
+const Player = ({ libmpv, title, canvasRef, playerRef, setIdle }: PlayerProps) => {
     const [mouseIsMoving, setMouseIsMoving] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -88,13 +88,15 @@ const Player = ({ libmpv, title, canvasRef, playerRef }: PlayerProps) => {
     useEffect(() => {
         if (!libmpv || workerRef.current) return;
 
-        const pthreads = libmpv.PThread.unusedWorkers.concat(libmpv.PThread.runningWorkers);
-        const worker = pthreads.find((worker: any) => worker.workerID === pthreads.length);
+        const worker = libmpv.PThread.unusedWorkers.concat(libmpv.PThread.runningWorkers)[0];
 
         const listener = (e: MessageEvent) => {
             try {
                 const payload = JSON.parse(e.data);
                 switch (payload.type) {
+                    case 'idle':
+                        setIdle(true);
+                        break;
                     case 'property-change':
                         switch (payload.name) {
                             case 'pause':
@@ -162,7 +164,7 @@ const Player = ({ libmpv, title, canvasRef, playerRef }: PlayerProps) => {
         worker.addEventListener('message', listener);
 
         workerRef.current = worker;
-    }, [libmpv]);
+    }, [libmpv, setIdle]);
                         
     return (
         <div className='player' ref={playerRef}

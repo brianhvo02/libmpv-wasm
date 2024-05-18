@@ -2,9 +2,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './Header.scss';
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef, useState } from 'react';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import { MainModule } from '../types/interface';
-import { CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, Theme } from '@mui/material';
+import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, Theme } from '@mui/material';
 import { showOpenFilePicker } from 'native-file-system-adapter';
+
+const LIMIT = 4 * 1024 * 1024 * 1024;
 
 const anchorOrigin: PopoverOrigin = {
     vertical: 'bottom',
@@ -17,9 +18,10 @@ const transformOrigin: PopoverOrigin = {
 }
 
 interface HeaderProps {
-    libmpv?: MainModule;
+    libmpv?: any;
     setTitle: Dispatch<SetStateAction<string>>
     playerRef: RefObject<HTMLDivElement>;
+    idle: boolean;
 }
 
 const paperStyle: SxProps<Theme> = {
@@ -44,11 +46,12 @@ const paperStyle: SxProps<Theme> = {
     outline: 'none'
 }
 
-const Header = ({ libmpv, setTitle, playerRef }: HeaderProps) => {
+const Header = ({ libmpv, setTitle, playerRef, idle }: HeaderProps) => {
     const [files, setFiles] = useState<string[]>([]);
     const [updateFiles, setUpdateFiles] = useState(0);
     const [libraryMenu, setLibraryMenu] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const headerRef = useRef<HTMLElement>(null);
     const libraryRef = useRef<HTMLDivElement>(null);
@@ -62,10 +65,10 @@ const Header = ({ libmpv, setTitle, playerRef }: HeaderProps) => {
     }, [updateFiles]);
 
     useEffect(() => {
-        if (!libmpv || workerRef.current) return;
-
-        const pthreads = libmpv.PThread.unusedWorkers.concat(libmpv.PThread.runningWorkers);
-        const worker = pthreads.find((worker: any) => worker.workerID === pthreads.length - 1);
+        if (!libmpv || workerRef.current || !idle) return;
+        
+        const threadId = libmpv.getFsThread();
+        const worker = (libmpv.PThread.pthreads as Record<number, Worker>)[threadId];
 
         const listener = (e: MessageEvent) => {
             const payload = JSON.parse(e.data);
@@ -83,7 +86,7 @@ const Header = ({ libmpv, setTitle, playerRef }: HeaderProps) => {
         worker.addEventListener('message', listener);
 
         workerRef.current = worker;
-    }, [libmpv, setTitle]);
+    }, [libmpv, setTitle, idle]);
 
     const handleUpload = async () => {
         if (!workerRef.current) return;
@@ -95,16 +98,30 @@ const Header = ({ libmpv, setTitle, playerRef }: HeaderProps) => {
         if (!files?.length)
             return;
 
+        for (const file of files) {
+            if (file.size < LIMIT)
+                continue;
+
+            return setError('File size exceeds 4GB file limit.');
+        }
+
         workerRef.current.postMessage(files);
         setUploading(true);
     }
 
     return (
         <header ref={headerRef}>
+            <Modal open={!!error}>
+                <Paper sx={paperStyle}>
+                    <h2>Error!</h2>
+                    <p>{error}</p>
+                    <Button onClick={() => setError(null)}>Close</Button>
+                </Paper>
+            </Modal>
             <Modal open={uploading}>
                 <Paper sx={paperStyle}>
                     <CircularProgress />
-                    <h2 >Uploading files...</h2>
+                    <h2>Uploading files...</h2>
                 </Paper>
             </Modal>
             <div className='logo'>
@@ -114,6 +131,9 @@ const Header = ({ libmpv, setTitle, playerRef }: HeaderProps) => {
             { libmpv && <>
             <div className='navbar' onClick={handleUpload}>
                 <span>Upload</span>
+            </div>
+            <div className='navbar' onClick={() => libmpv.crc32Gen()}>
+                <span>Debug</span>
             </div>
             <div className='navbar' ref={libraryRef} style={
                 libraryMenu ? { backgroundColor: '#141519' } : {}

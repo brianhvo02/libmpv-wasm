@@ -1,13 +1,13 @@
 import './App.scss';
 import Player from './components/Player';
 import Header from './components/Header';
-import { MainModule } from './types/interface';
 import { useEffect, useRef, useState } from 'react';
 import libmpvLoader from './libmpv';
 
 const App = () => {
-    const [libmpv, setLibmpv] = useState<MainModule>();
+    const [libmpv, setLibmpv] = useState<any>();
     const [title, setTitle] = useState('');
+    const [idle, setIdle] = useState(false);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const playerRef = useRef<HTMLDivElement>(null);
@@ -29,8 +29,8 @@ const App = () => {
 
     return (
         <div className="app">
-            <Header libmpv={libmpv} setTitle={setTitle} playerRef={playerRef} />
-            <Player libmpv={libmpv} title={title} canvasRef={canvasRef} playerRef={playerRef} />
+            <Header libmpv={libmpv} setTitle={setTitle} playerRef={playerRef} idle={idle} />
+            <Player libmpv={libmpv} title={title} canvasRef={canvasRef} playerRef={playerRef} setIdle={setIdle} />
         </div>
     );
 }

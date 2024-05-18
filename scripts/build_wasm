@@ -4,10 +4,10 @@ set -e
 
 mkdir -p build
 
-BUILD_CMD="emcc -pthread -Impv-build/build_libs/include --emit-tsd interface.d.ts \
-    -lembind -lopenal -lopfs.js -sENVIRONMENT=web,worker \
-    -sWASMFS -sFORCE_FILESYSTEM -sMODULARIZE -sEXPORTED_RUNTIME_METHODS=['FS','PThread'] -sEXPORT_NAME='libmpvLoader' \
-    -sINITIAL_MEMORY=1024MB -sPTHREAD_POOL_SIZE=16 -sPROXY_TO_PTHREAD=1 -sOFFSCREENCANVAS_SUPPORT=1 \
+BUILD_CMD="emcc -pthread -Impv-build/build_libs/include \
+    -lembind -lopenal -lopfs.js -sWASMFS -sENVIRONMENT=web,worker \
+    -sMODULARIZE -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader' \
+    -sINITIAL_MEMORY=2GB -sMEMORY64 -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT \
     -o build/libmpv.js libmpv.cpp"
 
 find mpv-build/build_libs/lib/*.a -type f -exec $BUILD_CMD {} +

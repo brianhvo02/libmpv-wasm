@@ -132,6 +132,17 @@ void main_loop() {
                                     }, evt->name, *data);
                                     break;
                                 }
+                                case MPV_FORMAT_INT64: {
+                                    int64_t *data = (int64_t *)evt->data;
+                                    EM_ASM({
+                                        postMessage(JSON.stringify({
+                                            type: 'property-change',
+                                            name: UTF8ToString($0),
+                                            value: $1.toString()
+                                        }));
+                                    }, evt->name, *data);
+                                    break;
+                                }
                                 case MPV_FORMAT_NODE: {
                                     mpv_node *data = (mpv_node *)evt->data;
                                     mpv_node_list *list;
@@ -150,8 +161,8 @@ void main_loop() {
                                                 switch (node.format) {
                                                     case MPV_FORMAT_INT64:
                                                         EM_ASM({
-                                                            track[UTF8ToString($0)] = $1;
-                                                        }, map->keys[j], (int)node.u.int64);
+                                                            track[UTF8ToString($0)] = $1.toString();
+                                                        }, map->keys[j], node.u.int64);
                                                         break;
                                                     case MPV_FORMAT_STRING:
                                                         EM_ASM({
@@ -166,7 +177,7 @@ void main_loop() {
                                                     case MPV_FORMAT_DOUBLE:
                                                         EM_ASM({
                                                             track[UTF8ToString($0)] = $1;
-                                                        }, map->keys[j], (int)node.u.double_);
+                                                        }, map->keys[j], node.u.double_);
                                                         break;
                                                     default:
                                                         printf("%s, format: %d\n", map->keys[j], node.format);
@@ -269,21 +280,21 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(mpv, 0, "duration", MPV_FORMAT_DOUBLE);
     mpv_observe_property(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(mpv, 0, "vid", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(mpv, 0, "vid", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
 }
 
 void load_file(string filename) {
-    const char * char_filename = filename.c_str();
-    printf("loading %s\n", char_filename);
+    filesystem::path path = "/opfs/mnt/" + filename;
+    printf("loading %s\n", path.c_str());
     
-    if (!filesystem::exists(char_filename)) {
+    if (!filesystem::exists(path)) {
         printf("file does not exist");
         return;
     }
 
-    const char *cmd[] = {"loadfile", char_filename, NULL};
+    const char *cmd[] = {"loadfile", path.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -304,19 +315,16 @@ void get_tracks() {
     mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
 }
 
-void set_video_track(int idx) {
-    uint64_t idx_cast = (uint64_t)idx;
-    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx_cast);
+void set_video_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx);
 }
 
-void set_audio_track(int idx) {
-    uint64_t idx_cast = (uint64_t)idx;
-    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx_cast);
+void set_audio_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx);
 }
 
-void set_subtitle_track(int idx) {
-    uint64_t idx_cast = (uint64_t)idx;
-    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx_cast);
+void set_subtitle_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx);
 }
 
 void* load_fs(void *args) {
@@ -349,7 +357,7 @@ int main(int argc, char const *argv[]) {
     pthread_create(&fs_thread, NULL, load_fs, NULL);
 
     backend_t opfs = wasmfs_create_opfs_backend();
-    int err = wasmfs_create_directory("/share", 0777, opfs);
+    int err = wasmfs_create_directory("/opfs", 0777, opfs);
     assert(err == 0);
 
     init_mpv();

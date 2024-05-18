@@ -17,9 +17,9 @@ interface ArrayConstructor {
 }
 
 interface Track {
-    id: number;
+    id: bigint;
     type: string;
-    srcId: number;
+    srcId: bigint;
     programId?: number;
     title?: string;
     lang?: string;
@@ -32,16 +32,16 @@ interface Track {
     hearingImpaired: number;
     external: number;
     selected: number;
-    mainSelection?: number;
-    ffIndex: number;
+    mainSelection?: bigint;
+    ffIndex: bigint;
     codec: string;
 }
 
 interface VideoTrack extends Track {
     codecDesc: string;
     codecProfile: string;
-    demuxW: number;
-    demuxH: number;
+    demuxW: bigint;
+    demuxH: bigint;
     demuxFps: number;
     demuxPar: number;
 }
@@ -49,7 +49,7 @@ interface VideoTrack extends Track {
 interface AudioTrack extends Track {
     audioChannels: number;
     codecDesc: string;
-    demuxChannelCount: number;
+    demuxChannelCount: bigint;
     demuxChannels: string;
-    demuxSamplerate: number;
+    demuxSamplerate: bigint;
 }

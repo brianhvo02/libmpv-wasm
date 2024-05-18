@@ -132,9 +132,6 @@ const Header = ({ libmpv, setTitle, playerRef, idle }: HeaderProps) => {
             <div className='navbar' onClick={handleUpload}>
                 <span>Upload</span>
             </div>
-            <div className='navbar' onClick={() => libmpv.crc32Gen()}>
-                <span>Debug</span>
-            </div>
             <div className='navbar' ref={libraryRef} style={
                 libraryMenu ? { backgroundColor: '#141519' } : {}
             } onClick={() => setLibraryMenu(prev => !prev)}>
@@ -169,7 +166,7 @@ const Header = ({ libmpv, setTitle, playerRef, idle }: HeaderProps) => {
                 <ul>
                     { files.map(file =>
                     <li key={file} onClick={() => {
-                        libmpv.loadFile('/share/mnt/' + file);
+                        libmpv.loadFile(file);
                         setLibraryMenu(false);
                         setTitle(file);
                     }}>

@@ -36,13 +36,13 @@ const Player = ({ libmpv, title, canvasRef, playerRef, setIdle }: PlayerProps) =
     const [subsMenu, setSubsMenu] = useState(false);
     const [volume, setVolume] = useState(1);
 
-    const [videoStream, setVideoStream] = useState(1);
+    const [videoStream, setVideoStream] = useState(1n);
     const [videoTracks, setVideoTracks] = useState<VideoTrack[]>([]);
 
-    const [audioStream, setAudioStream] = useState(1);
+    const [audioStream, setAudioStream] = useState(1n);
     const [audioTracks, setAudioTracks] = useState<AudioTrack[]>();
 
-    const [subtitleStream, setSubtitleStream] = useState(1);
+    const [subtitleStream, setSubtitleStream] = useState(1n);
     const [subtitleTracks, setSubtitleTracks] = useState<Track[]>();
 
     // const [extSubStream, setExtSubStream] = useState('');
@@ -110,13 +110,13 @@ const Player = ({ libmpv, title, canvasRef, playerRef, setIdle }: PlayerProps) =
                                     setElapsed(payload.value);
                                 break;
                             case 'vid':
-                                setVideoStream(payload.value);
+                                setVideoStream(BigInt(payload.value));
                                 break;
                             case 'aid':
-                                setAudioStream(payload.value);
+                                setAudioStream(BigInt(payload.value));
                                 break;
                             case 'sid':
-                                setSubtitleStream(payload.value);
+                                setSubtitleStream(BigInt(payload.value));
                                 break;
                             default:
                                 console.log(`event: property-change -> { name: ${
@@ -125,8 +125,14 @@ const Player = ({ libmpv, title, canvasRef, playerRef, setIdle }: PlayerProps) =
                         }
                         break;
                     case 'track-list':
+                        const bigIntKeys = [
+                            'id', 'srcId', 'mainSelection', 'ffIndex', 
+                            'demuxW', 'demuxH', 'demuxChannelCount', 'demuxSamplerate'
+                        ];
+                        
                         const tracks: Track[] = payload.tracks
-                            .map((track: any) => _.mapKeys(track, (v, k) => _.camelCase(k)));
+                            .map((track: any) => _.mapKeys(track, (v, k) => _.camelCase(k)))
+                            .map((track: any) => _.mapValues(track, (v, k) => bigIntKeys.includes(k) ? BigInt(v) : v ));
                             
                         const { videoTracks, audioTracks, subtitleTracks } = tracks.reduce(
                             (map: { 
@@ -171,8 +177,8 @@ const Player = ({ libmpv, title, canvasRef, playerRef, setIdle }: PlayerProps) =
             // onDoubleClick={toggleFullscreen}
         >
             <canvas id='canvas' ref={canvasRef} />
-            <div className="canvas-blocker" onClick={() => libmpv?.togglePlay()} />
-            { libmpv &&
+            <div className="canvas-blocker" onClick={() => title.length && libmpv?.togglePlay()} />
+            { libmpv && title.length &&
             <div className='player-controls' style={{ opacity: Number(mouseIsMoving) }}>
                 <div className='progress'>
                     <span>{formatTime(elapsed)}</span>

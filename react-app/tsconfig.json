@@ -18,6 +18,6 @@
     },
     "include": [
         "src",
-        "../src/types/*", "public/static/js/libmpv.js",
+        "../src/types/*"
     ]
 }

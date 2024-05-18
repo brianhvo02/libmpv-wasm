@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+LIB_DIR="${MPV_BUILD_DIR:="/src"}/build_libs"
+
+case "$PKG_CONFIG_PATH" in
+  '')
+    export PKG_CONFIG_PATH="$LIB_DIR/lib/pkgconfig"
+    ;;
+  *)
+    export PKG_CONFIG_PATH="$LIB_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
+    ;;
+esac
+
+export PKG_CONFIG="/usr/bin/pkg-config --static"
+emcmake cmake -B build -S . "$@"

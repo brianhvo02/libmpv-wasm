@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+LIB_DIR="${MPV_BUILD_DIR:="/src"}/build_libs"
+BUILD_CMD="emcc -pthread -I$LIB_DIR/include \
+    -lembind -lopenal -lopfs.js -sWASMFS -sENVIRONMENT=web,worker -sFULL_ES3 \
+    -sMODULARIZE -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader' \
+    -sINITIAL_MEMORY=2GB -sMEMORY64 -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT \
+    -o $TMP_DIR/libmpv.js libmpv.cpp"
+
+find $LIB_DIR/lib/*.a -type f -exec $BUILD_CMD {} +
+
+mkdir -p build
+install build/libmpv.js react-app/src
+# install build/libmpv.js build/libmpv.wasm src
+install build/libmpv.js build/libmpv.wasm react-app/public/static/js

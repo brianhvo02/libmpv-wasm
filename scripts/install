@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+USER_ID="${UID:=1000}"
+GROUP_ID="${GID:=1000}"
+
+install -o $USER_ID -g $GROUP_ID build/libmpv.js build/libmpv.wasm react-app/public/static/js
+install -o $USER_ID -g $GROUP_ID build/libmpv.js react-app/src
+# install -o $USER_ID -g $GROUP_ID build/libmpv.js src

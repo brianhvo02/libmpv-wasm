@@ -339,7 +339,7 @@ void init_mpv() {
         die("context init failed");
     }
 
-    mpv_set_option_string(mpv, "vo", "gpu_next,gpu,libmpv");
+    mpv_set_option_string(mpv, "vo", "libmpv");
 
     if (mpv_initialize(mpv) < 0) {
         die("mpv init failed");

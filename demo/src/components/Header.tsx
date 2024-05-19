@@ -112,6 +112,14 @@ const Header = () => {
                     ) }
                 </ul>
             </Popover>
+            { player.shaderCount > 0 && <>
+            <div className='navbar' onClick={() => player.mpvPlayer?.module.addShaders()}>
+                <span>Add Shaders</span>
+            </div>
+            <div className='navbar' onClick={() => player.mpvPlayer?.module.clearShaders()}>
+                <span>Clear Shaders</span>
+            </div>
+            </> }
             </> }
         </header>
     );

@@ -25,6 +25,9 @@
 using namespace emscripten;
 using namespace std;
 
+const int WIDTH = 3840;
+const int HEIGHT = 2160;
+
 static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
 SDL_Window *window;
 mpv_handle *mpv;
@@ -115,6 +118,29 @@ void set_subtitle_track(int64_t idx) {
 
 void set_chapter(int64_t idx) {
     mpv_set_property_async(mpv, 0, "chapter", MPV_FORMAT_INT64, &idx);
+}
+
+void add_shaders() {
+    const char *shader_list = "/shaders/Anime4K_Clamp_Highlights.glsl:/shaders/Anime4K_Restore_CNN_VL.glsl:/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:/shaders/Anime4K_AutoDownscalePre_x2.glsl:/shaders/Anime4K_AutoDownscalePre_x4.glsl:/shaders/Anime4K_Upscale_CNN_x2_M.glsl";
+    const char *cmd[] = {"change-list", "glsl-shaders", "set", shader_list, NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void clear_shaders() {
+    const char *cmd[] = {"change-list", "glsl-shaders", "clr", "", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+int get_shader_count() {
+    auto dirIter = std::filesystem::directory_iterator("/shaders");
+
+    int fileCount = std::count_if(
+        begin(dirIter),
+        end(dirIter),
+        [](auto& entry) { return entry.is_regular_file(); }
+    );
+
+    return fileCount - 1;
 }
 
 void* load_fs(void *args) {
@@ -313,13 +339,13 @@ void init_mpv() {
         die("context init failed");
     }
 
-    mpv_set_option_string(mpv, "vo", "libmpv");
+    mpv_set_option_string(mpv, "vo", "gpu_next,gpu,libmpv");
 
     if (mpv_initialize(mpv) < 0) {
         die("mpv init failed");
     }
 
-    // mpv_request_log_messages(mpv, "debug");
+    mpv_request_log_messages(mpv, "debug");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 
@@ -327,16 +353,17 @@ void init_mpv() {
         die("SDL init failed");
     }
     
-    window = SDL_CreateWindow("Media Player", 1920, 1080, SDL_WINDOW_OPENGL);
+    window = SDL_CreateWindow("Media Player", WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
 
-    if (!window) {
+    if (!window)
         die("failed to create SDL window");
-    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     SDL_GLContext glcontext = SDL_GL_CreateContext(window);
-    if (!glcontext) {
+    if (!glcontext)
         die("failed to create SDL GL context");
-    }
 
     mpv_opengl_init_params init_params = { get_proc_address_mpv };
     int advanced_control = 1;
@@ -395,4 +422,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("setSubtitleTrack", &set_subtitle_track);
     emscripten::function("setChapter", &set_chapter);
     emscripten::function("getFsThread", &get_fs_thread);
+    emscripten::function("addShaders", &add_shaders);
+    emscripten::function("clearShaders", &clear_shaders);
+    emscripten::function("getShaderCount", &get_shader_count);
 }

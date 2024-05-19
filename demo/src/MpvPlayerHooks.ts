@@ -26,6 +26,8 @@ export const useMpvPlayer = () => {
     const [uploading, setUploading] = useState(false);
     const [files, setFiles] = useState<string[]>([]);
 
+    const [shaderCount, setShaderCount] = useState<number>(0);
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const playerRef = useRef<HTMLDivElement>(null);
     const ranOnce = useRef(false);
@@ -37,7 +39,7 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        uploading, files,
+        uploading, files, shaderCount,
         setVolume, setTitle, setElapsed
     }), [
         mpvPlayer, canvasRef, playerRef,
@@ -46,7 +48,7 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        uploading, files,
+        uploading, files, shaderCount,
         setVolume, setTitle, setElapsed
     ]);
 
@@ -123,6 +125,10 @@ export const useMpvPlayer = () => {
                             case 'files':
                                 target.files = newValue;
                                 setFiles(newValue);
+                                break;
+                            case 'shaderCount':
+                                target.shaderCount = newValue;
+                                setShaderCount(newValue);
                                 break;
                             default:
                                 console.log('Unimplemented set:', p);

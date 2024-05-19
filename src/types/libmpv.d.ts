@@ -18,6 +18,9 @@ interface EmbindModule {
     setAudioTrack(id: number): void;
     setSubtitleTrack(id: number): void;
     getFsThread(): BigInt;
+    addShaders(): void;
+    clearShaders(): void;
+    getShaderCount(): number;
 }
 
 export type LibmpvModule = typeof RuntimeExports & EmbindModule;

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Downloads Anime4K shaders
+
+wget https://github.com/bloc97/Anime4K/releases/download/v4.0.1/Anime4K_v4.0.zip
+cd shaders
+unzip ../Anime4K_v4.0.zip
+rm ../Anime4K_v4.0.zip

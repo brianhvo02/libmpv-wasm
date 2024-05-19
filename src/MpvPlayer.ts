@@ -30,6 +30,8 @@ export default class MpvPlayer {
     uploading = false;
     files: string[] = [];
 
+    shaderCount = 0;
+
     proxy: MpvPlayer | null = null;
 
     private constructor(module: LibmpvModule) {
@@ -63,6 +65,7 @@ export default class MpvPlayer {
                         if (player.idle !== payload.value) {
                             this.setupFsWorker();
                             player.getFiles();
+                            player.shaderCount = this.module.getShaderCount();
                         }
                         player.idle = true;
                         break;

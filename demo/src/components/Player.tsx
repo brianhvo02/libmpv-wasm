@@ -6,11 +6,6 @@ import PlayerControls from './PlayerControls';
 
 const Player = () => {
     const player = useContext(PlayerContext);
-    // const [isFullscreen, setIsFullscreen] = useState(false);
-    // const toggleFullscreen = useCallback(() => isFullscreen
-    //     ? document.exitFullscreen()
-    //     : divRef.current?.requestFullscreen(), 
-    // [isFullscreen]);
                         
     return (
         <div className='player' ref={player?.playerRef}

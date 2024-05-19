@@ -40,6 +40,11 @@ const PlayerControls = ({ player }: { player: Player }) => {
     const [chapterMenu, setChapterMenu] = useState(false);
     const [mouseIsMoving, setMouseIsMoving] = useState(false);
 
+    // const toggleFullscreen = useCallback(() => document.fullscreenElement
+    //     ? document.exitFullscreen()
+    //     : document.body.requestFullscreen(), 
+    // []);
+    
     const onMouseMove = useCallback(() => {
         if (mouseTimeout.current)
             clearTimeout(mouseTimeout.current);

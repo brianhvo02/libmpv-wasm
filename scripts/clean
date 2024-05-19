@@ -1,5 +1,5 @@
 #!/bin/sh
 
-if [ -d build ]; then
-    rm -r build
+if [ -f build/Makefile ]; then
+    rm -r build/*
 fi

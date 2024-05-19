@@ -1,4 +1,3 @@
 /build
-.vscode
-SDL
 node_modules
+/build_libs

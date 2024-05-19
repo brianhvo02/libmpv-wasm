@@ -17,7 +17,6 @@
         "lib": [ "DOM", "ESNext.Array" ]
     },
     "include": [
-        "src",
-        "../src/types/*"
+        "src/**/*"
     ]
 }

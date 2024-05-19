@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "lib": ["DOM", "ESNext", "ES6"], 
+        "module": "CommonJS",
+        "rootDir": "./src",
+        // "moduleResolution": "node10",                     /* Specify how TypeScript looks up a file from a given module specifier. */
+        "declaration": true,
+        "outDir": "./build",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "allowJs": true
+    },
+    "include": [
+        "src/**/*"
+    ]
+}

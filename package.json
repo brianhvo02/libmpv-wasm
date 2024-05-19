@@ -1,0 +1,32 @@
+{
+    "name": "libmpv-wasm",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "build:wrapper": "cp package.json src/types/libmpv.d.ts build && tsc",
+        "build:wasm": "docker run --rm -v .:/app -w /app mpv-build scripts/rebuild && npm run build:wrapper",
+        "dev": "nodemon -e ts -w src -x 'npm run build:wrapper'",
+        "dev:demo": "npm --prefix demo start",
+        "linkbuild": "scripts/link_build"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/brianhvo02/libmpv-wasm.git"
+    },
+    "author": "Brian Vo",
+    "license": "GPL-3.0-or-later",
+    "bugs": {
+        "url": "https://github.com/brianhvo02/libmpv-wasm/issues"
+    },
+    "homepage": "https://github.com/brianhvo02/libmpv-wasm#readme",
+    "devDependencies": {
+        "@types/lodash": "^4.17.4",
+        "@types/wicg-file-system-access": "^2023.10.5",
+        "nodemon": "^3.1.0",
+        "typescript": "^5.4.5"
+    },
+    "dependencies": {
+        "lodash": "^4.17.21"
+    }
+}

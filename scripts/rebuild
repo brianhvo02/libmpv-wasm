@@ -4,4 +4,3 @@ set -e
 ./scripts/clean
 ./scripts/configure
 ./scripts/build "$@"
-./scripts/install

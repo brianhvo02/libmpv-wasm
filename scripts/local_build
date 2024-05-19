@@ -13,5 +13,5 @@ find $LIB_DIR/lib/*.a -type f -exec $BUILD_CMD {} +
 
 mkdir -p build
 install build/libmpv.js react-app/src
-# install build/libmpv.js build/libmpv.wasm src
+install build/libmpv.js build/libmpv.wasm src
 install build/libmpv.js build/libmpv.wasm react-app/public/static/js

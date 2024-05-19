@@ -16,13 +16,15 @@ export default class MpvPlayer {
     duration = 0;
     elapsed = 0;
 
-    videoStream = 1n;
-    audioStream = 1n;
-    subtitleStream = 1n;
+    videoStream = 1;
+    audioStream = 1;
+    subtitleStream = 1;
+    currentChapter = 0;
 
     videoTracks: VideoTrack[] = [];
     audioTracks: AudioTrack[] = [];
     subtitleTracks: Track[] = [];
+    chapters: Chapter[] = [];
 
     isSeeking = false;
     uploading = false;
@@ -77,13 +79,16 @@ export default class MpvPlayer {
                                     player.elapsed = payload.value;
                                 break;
                             case 'vid':
-                                player.videoStream = BigInt(payload.value);
+                                player.videoStream = parseInt(payload.value);
                                 break;
                             case 'aid':
-                                player.audioStream = BigInt(payload.value);
+                                player.audioStream = parseInt(payload.value);
                                 break;
                             case 'sid':
-                                player.subtitleStream = BigInt(payload.value);
+                                player.subtitleStream = parseInt(payload.value);
+                                break;
+                            case 'chapter':
+                                player.currentChapter = parseInt(payload.value);
                                 break;
                             default:
                                 console.log(`event: property-change -> { name: ${
@@ -125,6 +130,9 @@ export default class MpvPlayer {
                         player.videoTracks = videoTracks;
                         player.audioTracks = audioTracks;
                         player.subtitleTracks = subtitleTracks;
+                        break;
+                    case "chapter-list":
+                        player.chapters = payload.chapters;
                         break;
                     default:
                         console.log('Recieved payload:', payload);

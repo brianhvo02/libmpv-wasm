@@ -7,7 +7,7 @@
         "build:wrapper": "cp package.json src/types/libmpv.d.ts build && tsc",
         "build:wasm": "docker run --rm -v .:/app -w /app mpv-build scripts/rebuild && npm run build:wrapper",
         "dev": "nodemon -e ts -w src -x 'npm run build:wrapper'",
-        "dev:demo": "npm --prefix demo start",
+        "dev:demo": "BROWSER=none npm --prefix demo start",
         "linkbuild": "scripts/link_build"
     },
     "repository": {

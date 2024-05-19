@@ -13,6 +13,7 @@ interface EmbindModule {
     setPlaybackTime(seconds: number): void;
     setVolume(volume: number): void;
     getTracks(): void;
+    getChapters(): void;
     setVideoTrack(id: number): void;
     setAudioTrack(id: number): void;
     setSubtitleTrack(id: number): void;

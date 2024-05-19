@@ -11,14 +11,17 @@ export const useMpvPlayer = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(1);
 
-    const [videoStream, setVideoStream] = useState(1n);
+    const [videoStream, setVideoStream] = useState(1);
     const [videoTracks, setVideoTracks] = useState<VideoTrack[]>([]);
 
-    const [audioStream, setAudioStream] = useState(1n);
+    const [audioStream, setAudioStream] = useState(1);
     const [audioTracks, setAudioTracks] = useState<AudioTrack[]>();
 
-    const [subtitleStream, setSubtitleStream] = useState(1n);
+    const [subtitleStream, setSubtitleStream] = useState(1);
     const [subtitleTracks, setSubtitleTracks] = useState<Track[]>();
+
+    const [currentChapter, setCurrentChapter] = useState(0);
+    const [chapters, setChapters] = useState<Chapter[]>();
     
     const [uploading, setUploading] = useState(false);
     const [files, setFiles] = useState<string[]>([]);
@@ -33,6 +36,7 @@ export const useMpvPlayer = () => {
         videoStream, videoTracks,
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
+        currentChapter, chapters,
         uploading, files,
         setVolume, setTitle, setElapsed
     }), [
@@ -41,6 +45,7 @@ export const useMpvPlayer = () => {
         videoStream, videoTracks,
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
+        currentChapter, chapters,
         uploading, files,
         setVolume, setTitle, setElapsed
     ]);
@@ -77,28 +82,36 @@ export const useMpvPlayer = () => {
                             //     setVolume(newValue);
                             //     break;
                             case 'videoStream':
-                                target.videoStream = BigInt(newValue);
-                                setVideoStream(BigInt(newValue));
+                                target.videoStream = parseInt(newValue);
+                                setVideoStream(parseInt(newValue));
                                 break;
                             case 'videoTracks':
                                 target.videoTracks = newValue;
                                 setVideoTracks(newValue);
                                 break;
                             case 'audioStream':
-                                target.audioStream = BigInt(newValue);
-                                setAudioStream(BigInt(newValue));
+                                target.audioStream = parseInt(newValue);
+                                setAudioStream(parseInt(newValue));
                                 break;
                             case 'audioTracks':
                                 target.audioTracks = newValue;
                                 setAudioTracks(newValue);
                                 break;
                             case 'subtitleStream':
-                                target.subtitleStream = BigInt(newValue);
-                                setSubtitleStream(BigInt(newValue));
+                                target.subtitleStream = parseInt(newValue);
+                                setSubtitleStream(parseInt(newValue));
                                 break;
                             case 'subtitleTracks':
                                 target.subtitleTracks = newValue;
                                 setSubtitleTracks(newValue);
+                                break;
+                            case 'currentChapter':
+                                target.currentChapter = parseInt(newValue);
+                                setCurrentChapter(parseInt(newValue));
+                                break;
+                            case 'chapters':
+                                target.chapters = newValue;
+                                setChapters(newValue);
                                 break;
                             case 'isSeeking':
                                 target.isSeeking = newValue;

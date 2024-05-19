@@ -29,6 +29,11 @@ static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
 SDL_Window *window;
 mpv_handle *mpv;
 mpv_render_context *mpv_gl;
+pthread_t fs_thread;
+
+intptr_t get_fs_thread() {
+    return (intptr_t)fs_thread;
+}
 
 static void die(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -60,6 +65,76 @@ void quit() {
     emscripten_cancel_main_loop();
 
     printf("properly terminated\n");
+}
+
+void load_file(string filename) {
+    filesystem::path path = "/opfs/mnt/" + filename;
+    printf("loading %s\n", path.c_str());
+    
+    if (!filesystem::exists(path)) {
+        printf("file does not exist");
+        return;
+    }
+
+    const char *cmd[] = {"loadfile", path.c_str(), NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void toggle_play() {
+    const char *cmd[] = {"cycle", "pause", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void set_playback_time_pos(double time) {
+    mpv_set_property_async(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE, &time);
+}
+
+void set_ao_volume(double volume) {
+    mpv_set_property_async(mpv, 0, "ao-volume", MPV_FORMAT_DOUBLE, &volume);
+}
+
+void get_tracks() {
+    mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
+}
+
+void get_chapters() {
+    mpv_get_property_async(mpv, 0, "chapter-list", MPV_FORMAT_NODE);
+}
+
+void set_video_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_audio_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_subtitle_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_chapter(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "chapter", MPV_FORMAT_INT64, &idx);
+}
+
+void* load_fs(void *args) {
+    EM_ASM(
+        onmessage = async e => {
+            for (const file of e.data) {
+                const writable = await navigator.storage.getDirectory()
+                    .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
+                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }))
+                    .then(accessHandle => accessHandle.createWritable());
+                console.log('Writing', file.name);
+                await writable.write(file);
+                await writable.close();
+            }
+
+            postMessage(JSON.stringify({ type: 'upload' }));
+        }
+    );
+
+    return NULL;
 }
 
 void main_loop() {
@@ -94,7 +169,8 @@ void main_loop() {
                             break;
                         }
                         case MPV_EVENT_FILE_LOADED:
-                            mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
+                            get_tracks();
+                            get_chapters();
                             break;
                         case MPV_EVENT_GET_PROPERTY_REPLY:
                         case MPV_EVENT_PROPERTY_CHANGE: {
@@ -148,51 +224,62 @@ void main_loop() {
                                     mpv_node_list *list;
                                     mpv_node_list *map;
                                     mpv_node node;
+    
+                                    if (strcmp(evt->name, "track-list") != 0 && strcmp(evt->name, "chapter-list") != 0)
+                                        break;
 
-                                    if (strcmp(evt->name, "track-list") == 0) {
-                                        list = (mpv_node_list *)data->u.list;
-                                        EM_ASM(tracks = [];);
-                                        
-                                        for (int i = 0; i < list->num; i++) {
-                                            EM_ASM(track = {};);
-                                            map = (mpv_node_list *)list->values[i].u.list;
-                                            for (int j = 0; j < map->num; j++) {
-                                                node = map->values[j];
-                                                switch (node.format) {
-                                                    case MPV_FORMAT_INT64:
-                                                        EM_ASM({
-                                                            track[UTF8ToString($0)] = $1.toString();
-                                                        }, map->keys[j], node.u.int64);
-                                                        break;
-                                                    case MPV_FORMAT_STRING:
-                                                        EM_ASM({
-                                                            track[UTF8ToString($0)] = UTF8ToString($1);
-                                                        }, map->keys[j], node.u.string);
-                                                        break;
-                                                    case MPV_FORMAT_FLAG:
-                                                        EM_ASM({
-                                                            track[UTF8ToString($0)] = $1;
-                                                        }, map->keys[j], node.u.flag);
-                                                        break;
-                                                    case MPV_FORMAT_DOUBLE:
-                                                        EM_ASM({
-                                                            track[UTF8ToString($0)] = $1;
-                                                        }, map->keys[j], node.u.double_);
-                                                        break;
-                                                    default:
-                                                        printf("%s, format: %d\n", map->keys[j], node.format);
-                                                }
+                                    list = (mpv_node_list *)data->u.list;
+                                    EM_ASM(arr = [];);
+                                    
+                                    for (int i = 0; i < list->num; i++) {
+                                        EM_ASM(obj = {};);
+                                        map = (mpv_node_list *)list->values[i].u.list;
+                                        for (int j = 0; j < map->num; j++) {
+                                            node = map->values[j];
+                                            switch (node.format) {
+                                                case MPV_FORMAT_INT64:
+                                                    EM_ASM({
+                                                        obj[UTF8ToString($0)] = $1.toString();
+                                                    }, map->keys[j], node.u.int64);
+                                                    break;
+                                                case MPV_FORMAT_STRING:
+                                                    EM_ASM({
+                                                        obj[UTF8ToString($0)] = UTF8ToString($1);
+                                                    }, map->keys[j], node.u.string);
+                                                    break;
+                                                case MPV_FORMAT_FLAG:
+                                                    EM_ASM({
+                                                        obj[UTF8ToString($0)] = $1;
+                                                    }, map->keys[j], node.u.flag);
+                                                    break;
+                                                case MPV_FORMAT_DOUBLE:
+                                                    EM_ASM({
+                                                        obj[UTF8ToString($0)] = $1;
+                                                    }, map->keys[j], node.u.double_);
+                                                    break;
+                                                default:
+                                                    printf("%s, format: %d\n", map->keys[j], node.format);
                                             }
-                                            EM_ASM(tracks.push(track););
                                         }
+                                        EM_ASM(arr.push(obj););
+                                    }
+                                    if (strcmp(evt->name, "track-list") == 0) {
                                         EM_ASM({
                                             postMessage(JSON.stringify({
                                                 type: 'track-list',
-                                                tracks
+                                                tracks: arr
                                             }));
                                         });
-                                        break;
                                     }
+                                    if (strcmp(evt->name, "chapter-list") == 0) {
+                                        EM_ASM({
+                                            postMessage(JSON.stringify({
+                                                type: 'chapter-list',
+                                                chapters: arr
+                                            }));
+                                        });
+                                    }
+                                    break;
                                 }
                                 default:
                                     printf("property-change: { name: %s, format: %d }\n", evt->name, evt->format);
@@ -242,10 +329,6 @@ void init_mpv() {
     
     window = SDL_CreateWindow("Media Player", 1920, 1080, SDL_WINDOW_OPENGL);
 
-    #ifdef TEST_SDL_LOCK_OPTS
-    EM_ASM("SDL.defaults.copyOnLock = false; SDL.defaults.discardOnLock = true; SDL.defaults.opaqueFrontBuffer = false;");
-    #endif
-
     if (!window) {
         die("failed to create SDL window");
     }
@@ -283,74 +366,7 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "vid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
-}
-
-void load_file(string filename) {
-    filesystem::path path = "/opfs/mnt/" + filename;
-    printf("loading %s\n", path.c_str());
-    
-    if (!filesystem::exists(path)) {
-        printf("file does not exist");
-        return;
-    }
-
-    const char *cmd[] = {"loadfile", path.c_str(), NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void toggle_play() {
-    const char *cmd[] = {"cycle", "pause", NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void set_playback_time_pos(double time) {
-    mpv_set_property_async(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE, &time);
-}
-
-void set_ao_volume(double volume) {
-    mpv_set_property_async(mpv, 0, "ao-volume", MPV_FORMAT_DOUBLE, &volume);
-}
-
-void get_tracks() {
-    mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
-}
-
-void set_video_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx);
-}
-
-void set_audio_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx);
-}
-
-void set_subtitle_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx);
-}
-
-void* load_fs(void *args) {
-    EM_ASM(
-        onmessage = async e => {
-            for (const file of e.data) {
-                const writable = await navigator.storage.getDirectory()
-                    .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }))
-                    .then(accessHandle => accessHandle.createWritable());
-                console.log('Writing', file.name);
-                await writable.write(file);
-                await writable.close();
-            }
-
-            postMessage(JSON.stringify({ type: 'upload' }));
-        }
-    );
-
-    return NULL;
-}
-
-pthread_t fs_thread;
-
-intptr_t get_fs_thread() {
-    return (intptr_t)fs_thread;
+    mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
 }
 
 int main(int argc, char const *argv[]) {
@@ -373,8 +389,10 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("setPlaybackTime", &set_playback_time_pos);
     emscripten::function("setVolume", &set_ao_volume);
     emscripten::function("getTracks", &get_tracks);
+    emscripten::function("getChapters", &get_chapters);
     emscripten::function("setVideoTrack", &set_video_track);
     emscripten::function("setAudioTrack", &set_audio_track);
     emscripten::function("setSubtitleTrack", &set_subtitle_track);
+    emscripten::function("setChapter", &set_chapter);
     emscripten::function("getFsThread", &get_fs_thread);
 }

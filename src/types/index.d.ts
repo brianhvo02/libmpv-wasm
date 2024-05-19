@@ -40,3 +40,8 @@ interface AudioTrack extends Track {
     demuxChannels: string;
     demuxSamplerate: bigint;
 }
+
+interface Chapter {
+    title: string;
+    time: number;
+}

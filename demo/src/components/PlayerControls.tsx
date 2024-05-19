@@ -2,7 +2,7 @@ import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from
 import { Player } from '../MpvPlayerHooks';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faBookmark, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
 
@@ -22,19 +22,22 @@ const PlayerControls = ({ player }: { player: Player }) => {
         title, elapsed, duration, isPlaying, volume,
         videoStream, videoTracks,
         audioStream, audioTracks,
+        currentChapter, chapters,
         subtitleStream, subtitleTracks,
     } = player;
 
     const volumeRef = useRef<SVGSVGElement>(null);
     const videoMenuRef = useRef<SVGSVGElement>(null);
     const audioMenuRef = useRef<SVGSVGElement>(null);
-    const subsMenuRef = useRef<SVGSVGElement>(null);
+    const subtitleMenuRef = useRef<SVGSVGElement>(null);
+    const chapterMenuRef = useRef<SVGSVGElement>(null);
     const mouseTimeout = useRef<NodeJS.Timeout>();
 
     const [volumeMenu, setVolumeMenu] = useState(false);
     const [videoMenu, setVideoMenu] = useState(false);
     const [audioMenu, setAudioMenu] = useState(false);
-    const [subsMenu, setSubsMenu] = useState(false);
+    const [subtitleMenu, setSubtitleMenu] = useState(false);
+    const [chapterMenu, setChapterMenu] = useState(false);
     const [mouseIsMoving, setMouseIsMoving] = useState(false);
 
     const onMouseMove = useCallback(() => {
@@ -60,6 +63,11 @@ const PlayerControls = ({ player }: { player: Player }) => {
     const pointerStyle: CSSProperties = useMemo(() => {
         return { pointerEvents: mouseIsMoving ? 'auto' : 'none' };
     }, [mouseIsMoving]);
+
+    const marks = useMemo(() => chapters?.map(({ title, time }) => ({
+        label: title,
+        value: time
+    })), [chapters])
 
     if (!mpvPlayer) return null;
 
@@ -88,7 +96,7 @@ const PlayerControls = ({ player }: { player: Player }) => {
                         mpvPlayer.isSeeking = false;
                         mpvPlayer.module.setPlaybackTime(val);
                     }}
-                    // marks={marks && marks.length > 1 ? marks : false}
+                    marks={marks && marks.length > 1 ? marks : false}
                     disabled={!mouseIsMoving}
                 />
                 <span>{formatTime(duration)}</span>
@@ -137,6 +145,36 @@ const PlayerControls = ({ player }: { player: Player }) => {
                         />
                         <p>{Math.floor(volume * 100)}</p>
                     </Popover>
+                    { chapters && chapters.length > 0 && <>
+                    <FontAwesomeIcon 
+                        icon={faBookmark} 
+                        ref={chapterMenuRef}
+                        onClick={() => setChapterMenu(true)}
+                        style={pointerStyle}
+                        color={chapterMenu ? '#73467d' : 'white'}
+                    />
+                    <Menu
+                        anchorEl={chapterMenuRef.current}
+                        anchorOrigin={anchorOrigin}
+                        transformOrigin={transformOrigin}
+                        open={chapterMenu}
+                        onClose={() => setChapterMenu(false)}
+                        container={playerRef.current}
+                    >{ chapters.map((chapter, i) => (
+                        <MenuItem key={`chapter_${i}`} 
+                            onClick={() => mpvPlayer.module.setChapter(BigInt(i))}>
+                            {
+                                currentChapter === i &&
+                                <ListItemIcon>
+                                    <Check />
+                                </ListItemIcon>
+                            }
+                            <ListItemText inset={currentChapter !== i}>
+                                {chapter.title ?? 'Chapter ' + (i + 1)}
+                            </ListItemText>
+                        </MenuItem>
+                    )) }</Menu>
+                    </> }
                     {
                         videoTracks && videoTracks.length > 1 &&
                         <>
@@ -156,16 +194,16 @@ const PlayerControls = ({ player }: { player: Player }) => {
                                 container={playerRef.current}
                             >
                                 {videoTracks.map((track) => (
-                                <MenuItem key={`video_${track.id}`} 
+                                <MenuItem key={`video_${Number(track.id)}`} 
                                     onClick={() => mpvPlayer.module.setVideoTrack(track.id)}>
                                     {
-                                        videoStream === track.id &&
+                                        videoStream === Number(track.id) &&
                                         <ListItemIcon>
                                             <Check />
                                         </ListItemIcon>
                                     }
-                                    <ListItemText inset={videoStream !== track.id}>
-                                        {track.title ?? 'Video Track ' + track.id}
+                                    <ListItemText inset={videoStream !== Number(track.id)}>
+                                        {track.title ?? 'Video Track ' + Number(track.id)}
                                     </ListItemText>
                                 </MenuItem>
                                 ))}
@@ -191,16 +229,16 @@ const PlayerControls = ({ player }: { player: Player }) => {
                                 container={playerRef.current}
                             >
                                 {audioTracks.map((track) => (
-                                <MenuItem key={`audio_${track.id}`} 
+                                <MenuItem key={`audio_${Number(track.id)}`} 
                                     onClick={() => mpvPlayer.module.setAudioTrack(track.id)}>
                                     {
-                                        audioStream === track.id &&
+                                        audioStream === Number(track.id) &&
                                         <ListItemIcon>
                                             <Check />
                                         </ListItemIcon>
                                     }
-                                    <ListItemText inset={audioStream !== track.id}>
-                                        {track.title ?? 'Audio Track ' + track.id} ({track.lang ?? 'und'})
+                                    <ListItemText inset={audioStream !== Number(track.id)}>
+                                        {track.title ?? 'Audio Track ' + Number(track.id)} ({track.lang ?? 'und'})
                                     </ListItemText>
                                 </MenuItem>
                                 ))}
@@ -210,20 +248,20 @@ const PlayerControls = ({ player }: { player: Player }) => {
                     { subtitleTracks && subtitleTracks.length > 0 && <>
                     <FontAwesomeIcon 
                         icon={faMessage} 
-                        ref={subsMenuRef}
-                        onClick={() => setSubsMenu(true)}
+                        ref={subtitleMenuRef}
+                        onClick={() => setSubtitleMenu(true)}
                         style={pointerStyle}
-                        color={subsMenu ? '#73467d' : 'white'}
+                        color={subtitleMenu ? '#73467d' : 'white'}
                     />
                     <Menu
-                        anchorEl={subsMenuRef.current}
+                        anchorEl={subtitleMenuRef.current}
                         anchorOrigin={anchorOrigin}
                         transformOrigin={transformOrigin}
-                        open={subsMenu}
-                        onClose={() => setSubsMenu(false)}
+                        open={subtitleMenu}
+                        onClose={() => setSubtitleMenu(false)}
                         container={playerRef.current}
                     >
-                        <MenuItem onClick={() => mpvPlayer.module.setSubtitleTrack(0)}>
+                        <MenuItem onClick={() => mpvPlayer.module.setSubtitleTrack(0n)}>
                             {
                                 !subtitleStream &&
                                 <ListItemIcon>
@@ -236,16 +274,16 @@ const PlayerControls = ({ player }: { player: Player }) => {
                         </MenuItem>
                         {
                             subtitleTracks.map(track => (
-                                <MenuItem key={`subs_${track.id}`} 
+                                <MenuItem key={`subs_${Number(track.id)}`} 
                                     onClick={() => mpvPlayer.module.setSubtitleTrack(track.id)}>
                                     {
-                                        subtitleStream === track.id &&
+                                        subtitleStream === Number(track.id) &&
                                         <ListItemIcon>
                                             <Check />
                                         </ListItemIcon>
                                     }
-                                    <ListItemText inset={subtitleStream !== track.id}>
-                                        {track.title ?? 'Subtitle Track ' + track.id} ({track.lang ?? 'und'})
+                                    <ListItemText inset={subtitleStream !== Number(track.id)}>
+                                        {track.title ?? 'Subtitle Track ' + Number(track.id)} ({track.lang ?? 'und'})
                                     </ListItemText>
                                 </MenuItem>
                             ))

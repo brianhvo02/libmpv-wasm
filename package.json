@@ -6,7 +6,7 @@
     "scripts": {
         "build": "./scripts/build",
         "build:full": "./scripts/build && npm --prefix demo run build",
-        "build:vercel": "BUILD_PATH=../.vercel/output/public npm run build:full",
+        "build:vercel": "BUILD_PATH=../public npm run build:full",
         "dev": "nodemon -e ts -w src -x 'npm run build'",
         "dev:demo": "BROWSER=none npm --prefix demo start",
         "linkbuild": "scripts/link_build"

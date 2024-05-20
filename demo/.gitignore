@@ -24,3 +24,4 @@ yarn-error.log*
 
 public/static/js/libmpv.wasm
 public/static/js/libmpv.js
+public/libmpv.data

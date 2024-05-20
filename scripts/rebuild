@@ -3,5 +3,6 @@ set -e
 
 ./scripts/clean
 ./scripts/configure
-./scripts/build "$@"
-install build/libmpv.js build/libmpv.wasm demo/public/static/js
+./scripts/build_wasm "$@"
+install build/libmpv.js build/libmpv.wasm build/libmpv.data demo/public/static/js
+install build/libmpv.data demo/public

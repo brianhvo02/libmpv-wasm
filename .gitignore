@@ -4,3 +4,4 @@ node_modules
 .vscode/settings.json
 shaders/*
 !shaders/.keep
+.vercel/output/static

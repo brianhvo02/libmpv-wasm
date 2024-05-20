@@ -2,7 +2,7 @@
 
 set -e
 
-if ! command -v tsc &> /dev/null; then
+if ! [ -f "node_modules/typescript/bin/tsc" ]; then
     echo "tsc command not found"
     exit 1
 fi

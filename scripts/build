@@ -8,12 +8,12 @@ if ! [ -f "node_modules/typescript/bin/tsc" ]; then
 fi
 
 mkdir -p build
-docker run --rm -it -v .:/app -w /app brianhvo02/em_mpv:latest scripts/rebuild
+docker run --rm -v .:/app -w /app brianhvo02/em_mpv:latest scripts/rebuild
 ./scripts/link_build
 
 COUNT=$(find . -type f | wc -l)
 if [ "$COUNT" -eq 1 ]; then
-docker run --rm -it -v .:/app -w /app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
+    docker run --rm -v .:/app -w /app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
 fi
 
 cp package.json src/types/libmpv.d.ts build

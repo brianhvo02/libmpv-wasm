@@ -2,7 +2,7 @@
     "buildCommand": "npm run build:vercel",
     "headers": [
         {
-            "source": "/",
+            "source": "/(.*)",
             "headers": [
                 {
                     "key": "Cross-Origin-Embedder-Policy",

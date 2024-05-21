@@ -8,7 +8,6 @@ if ! [ -f "node_modules/typescript/bin/tsc" ]; then
 fi
 
 COUNT=$(find shaders -type f | wc -l)
-echo $COUNT
 if [ "$COUNT" -eq 1 ]; then
     docker run --rm -v .:/app -w /app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
 fi

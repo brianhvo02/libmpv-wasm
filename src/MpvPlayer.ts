@@ -2,6 +2,7 @@ import libmpvLoader from 'libmpv-wasm/libmpv';
 import type { LibmpvModule } from './types/libmpv';
 import _ from 'lodash';
 import { isAudioTrack, isVideoTrack } from './utils';
+import { showOpenFilePicker } from 'native-file-system-adapter';
 
 const LIMIT = 4 * 1024 * 1024 * 1024;
 
@@ -179,18 +180,18 @@ export default class MpvPlayer {
             return files;
         });
 
-    async uploadFiles() {
+    async uploadFiles(files?: File[]) {
         if (!this.fsWorker)
             throw new Error('File system worker not initialized.');
 
-        const files = await showOpenFilePicker()
+        const pickedFiles = files ?? await showOpenFilePicker()
             .then(files => Promise.all(files.map(file => file.getFile())))
             .catch(e => console.error(e));
 
-        if (!files?.length)
+        if (!pickedFiles?.length)
             return;
 
-        for (const file of files) {
+        for (const file of pickedFiles) {
             if (file.size < LIMIT)
                 continue;
 
@@ -198,6 +199,6 @@ export default class MpvPlayer {
         }
 
         this.uploading = true;
-        this.fsWorker.postMessage(files);
+        this.fsWorker.postMessage(pickedFiles);
     }
 }

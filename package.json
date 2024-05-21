@@ -28,6 +28,7 @@
         "typescript": "^5.4.5"
     },
     "dependencies": {
-        "lodash": "^4.17.21"
+        "lodash": "^4.17.21",
+        "native-file-system-adapter": "^3.0.1"
     }
 }

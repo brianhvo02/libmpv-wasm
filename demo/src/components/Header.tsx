@@ -1,8 +1,8 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './Header.scss';
-import { useContext, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, Theme } from '@mui/material';
+import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, TextField, Theme } from '@mui/material';
 import { PlayerContext } from '../MpvPlayerHooks';
 
 const anchorOrigin: PopoverOrigin = {
@@ -40,10 +40,25 @@ const paperStyle: SxProps<Theme> = {
 const Header = () => {
     const player = useContext(PlayerContext);
     const [libraryMenu, setLibraryMenu] = useState(false);
+    const [openUrlMenu, setOpenUrlMenu] = useState(false);
+    const [url, setUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     const headerRef = useRef<HTMLElement>(null);
     const libraryRef = useRef<HTMLDivElement>(null);
+    const openUrlRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!openUrlMenu)
+            setUrl('');
+    }, [openUrlMenu]);
+
+    const handleUrlLoadClick = () => {
+        if (!player?.mpvPlayer) return;
+        player.mpvPlayer.module.loadFile(url);
+        setOpenUrlMenu(false);
+        player.setTitle(url);
+    }
 
     return (
         <header ref={headerRef}>
@@ -65,12 +80,63 @@ const Header = () => {
                     <h2>Uploading files...</h2>
                 </Paper>
             </Modal>
-            <div className='navbar' onClick={() => player.mpvPlayer?.uploadFiles()}>
+            <label className='navbar' onClick={() => 
+                typeof showOpenFilePicker !== 'undefined' &&
+                player.mpvPlayer?.uploadFiles()
+            }>
                 <span>Upload</span>
+                { typeof showOpenFilePicker === 'undefined' &&
+                <input type='file' onChange={e => player.mpvPlayer?.uploadFiles(Array.from(e.target.files ?? []))} />}
+            </label>
+            <div className='navbar' ref={openUrlRef} style={
+                openUrlMenu ? { backgroundColor: '#141519' } : {}
+            } onClick={() => {
+                setOpenUrlMenu(prev => !prev);
+                if (libraryMenu)
+                    setLibraryMenu(false);
+            }}>
+                <span>Open URL</span>
+                <FontAwesomeIcon icon={faChevronDown} />
             </div>
+            <Popover
+                open={openUrlMenu}
+                anchorEl={openUrlRef.current}
+                onClose={() => setOpenUrlMenu(false)}
+                anchorOrigin={anchorOrigin}
+                transformOrigin={transformOrigin}
+                sx={{ top: 0 }}
+                slotProps={{ 
+                    root: { 
+                        sx: { top: '4rem' },
+                        slotProps: { 
+                            backdrop: { 
+                                invisible: false,
+                                sx: { top: '4rem' }
+                            }
+                        } 
+                    },
+                    paper: { 
+                        className: 'library-paper',
+                        sx: { 
+                            backgroundColor: '#141519', padding: '1rem',
+                            display: 'flex', gap: '1rem', 
+                        }
+                    }
+                }}
+                container={player?.playerRef.current}
+            >
+                <TextField onChange={e => setUrl(e.target.value)}
+                    label="Enter URL" variant="outlined" />
+                <Button onClick={handleUrlLoadClick}
+                    variant="contained">Load</Button>
+            </Popover>
             <div className='navbar' ref={libraryRef} style={
                 libraryMenu ? { backgroundColor: '#141519' } : {}
-            } onClick={() => setLibraryMenu(prev => !prev)}>
+            } onClick={() => {
+                setLibraryMenu(prev => !prev);
+                if (openUrlMenu)
+                    setOpenUrlMenu(false);
+            }}>
                 <span>Select from Library</span>
                 <FontAwesomeIcon icon={faChevronDown} />
             </div>
@@ -103,7 +169,7 @@ const Header = () => {
                     { player.files.map(file =>
                     <li key={file} onClick={() => {
                         if (!player?.mpvPlayer) return;
-                        player.mpvPlayer.module.loadFile(file);
+                        player.mpvPlayer.module.loadFile('/opfs/mnt/' + file);
                         setLibraryMenu(false);
                         player.setTitle(file);
                     }}>

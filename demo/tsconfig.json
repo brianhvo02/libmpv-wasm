@@ -14,7 +14,7 @@
         "isolatedModules": true,
         "noEmit": true,
         "jsx": "react-jsx",
-        "lib": [ "DOM", "ESNext.Array" ]
+        "lib": [ "DOM", "ESNext.Array", "ES6" ]
     },
     "include": [
         "src/**/*",

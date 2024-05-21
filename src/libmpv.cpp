@@ -70,8 +70,7 @@ void quit() {
     printf("properly terminated\n");
 }
 
-void load_file(string filename) {
-    filesystem::path path = "/opfs/mnt/" + filename;
+void load_file(string path) {
     printf("loading %s\n", path.c_str());
     
     if (!filesystem::exists(path)) {
@@ -356,7 +355,7 @@ void init_mpv() {
         die("mpv init failed");
     }
 
-    mpv_request_log_messages(mpv, "debug");
+    // mpv_request_log_messages(mpv, "debug");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 

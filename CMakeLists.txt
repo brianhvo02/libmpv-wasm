@@ -13,7 +13,7 @@ include_directories (${MPV_INCLUDE_DIRS})
 link_directories (${MPV_STATIC_LIBRARY_DIRS})
 include_directories (${SDL3_INCLUDE_DIRS})
 link_directories (${SDL3_STATIC_LIBRARY_DIRS})
-add_executable(libmpv libmpv.cpp)
+add_executable(libmpv src/libmpv.cpp)
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE true)
 set_target_properties(libmpv PROPERTIES LINK_FLAGS "-sUSE_PTHREADS -lembind -lopenal -lopfs.js -sWASMFS \

@@ -1,8 +1,8 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './Header.scss';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, TextField, Theme } from '@mui/material';
+import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, Theme } from '@mui/material';
 import { PlayerContext } from '../MpvPlayerHooks';
 
 const anchorOrigin: PopoverOrigin = {

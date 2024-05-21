@@ -41,24 +41,26 @@ const Header = () => {
     const player = useContext(PlayerContext);
     const [libraryMenu, setLibraryMenu] = useState(false);
     const [openUrlMenu, setOpenUrlMenu] = useState(false);
-    const [url, setUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
-
+    
     const headerRef = useRef<HTMLElement>(null);
     const libraryRef = useRef<HTMLDivElement>(null);
-    const openUrlRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!openUrlMenu)
-            setUrl('');
-    }, [openUrlMenu]);
+    // OpenSSL capabilities
+    // const [url, setUrl] = useState('');
+    // const openUrlRef = useRef<HTMLDivElement>(null);
 
-    const handleUrlLoadClick = () => {
-        if (!player?.mpvPlayer) return;
-        player.mpvPlayer.module.loadFile(url);
-        setOpenUrlMenu(false);
-        player.setTitle(url);
-    }
+    // useEffect(() => {
+    //     if (!openUrlMenu)
+    //         setUrl('');
+    // }, [openUrlMenu]);
+
+    // const handleUrlLoadClick = () => {
+    //     if (!player?.mpvPlayer) return;
+    //     player.mpvPlayer.module.loadUrl(url);
+    //     setOpenUrlMenu(false);
+    //     player.setTitle(url);
+    // }
 
     return (
         <header ref={headerRef}>
@@ -88,7 +90,8 @@ const Header = () => {
                 { typeof showOpenFilePicker === 'undefined' &&
                 <input type='file' onChange={e => player.mpvPlayer?.uploadFiles(Array.from(e.target.files ?? []))} />}
             </label>
-            <div className='navbar' ref={openUrlRef} style={
+            {/* OpenSSL capabilities */}
+            {/* <div className='navbar' ref={openUrlRef} style={
                 openUrlMenu ? { backgroundColor: '#141519' } : {}
             } onClick={() => {
                 setOpenUrlMenu(prev => !prev);
@@ -129,7 +132,7 @@ const Header = () => {
                     label="Enter URL" variant="outlined" />
                 <Button onClick={handleUrlLoadClick}
                     variant="contained">Load</Button>
-            </Popover>
+            </Popover> */}
             <div className='navbar' ref={libraryRef} style={
                 libraryMenu ? { backgroundColor: '#141519' } : {}
             } onClick={() => {

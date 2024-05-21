@@ -14,12 +14,9 @@ const theme = createTheme({
         mode: 'dark',
         primary: {
             main: '#73467d'
-        },
-        text: {
-            primary: '#FFFFFF'
         }
     }
-})
+});
 
 root.render(
     <StrictMode>

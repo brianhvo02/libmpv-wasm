@@ -13,7 +13,7 @@ const Player = () => {
         >
             <canvas id='canvas' ref={player?.canvasRef} />
             <div className="canvas-blocker" onClick={() => player?.title.length && player.mpvPlayer?.module.togglePlay()} />
-            { player?.title.length &&
+            { !!player?.title.length &&
             <PlayerControls player={player} /> }
         </div>
     );

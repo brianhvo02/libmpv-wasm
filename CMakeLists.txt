@@ -17,7 +17,7 @@ add_executable(libmpv src/libmpv.cpp)
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE true)
 set_target_properties(libmpv PROPERTIES LINK_FLAGS "-sUSE_PTHREADS -lembind -lopenal -lopfs.js -sWASMFS \
--sMODULARIZE -sINITIAL_MEMORY=1GB -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT -sFULL_ES3 \
+-sMODULARIZE -sINITIAL_MEMORY=256MB -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT -sFULL_ES3 \
 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader' \
 --preload-file ../shaders@/shaders")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")

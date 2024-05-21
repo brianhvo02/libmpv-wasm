@@ -74,11 +74,23 @@ void load_file(string path) {
     printf("loading %s\n", path.c_str());
     
     if (!filesystem::exists(path)) {
-        printf("file does not exist");
+        printf("file does not exist\n");
         return;
     }
 
     const char *cmd[] = {"loadfile", path.c_str(), NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void load_url(string url) {
+    printf("loading %s\n", url.c_str());
+    
+    if (url.find("http://") + url.find("https://") < string::npos) {
+        printf("unsupported protocol\n");
+        return;
+    }
+
+    const char *cmd[] = {"loadfile", url.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -355,7 +367,7 @@ void init_mpv() {
         die("mpv init failed");
     }
 
-    // mpv_request_log_messages(mpv, "debug");
+    mpv_request_log_messages(mpv, "trace");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 
@@ -422,6 +434,7 @@ int main(int argc, char const *argv[]) {
 EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("mpvInit", &init_mpv);
     emscripten::function("loadFile", &load_file);
+    emscripten::function("loadUrl", &load_url);
     emscripten::function("togglePlay", &toggle_play);
     emscripten::function("setPlaybackTime", &set_playback_time_pos);
     emscripten::function("setVolume", &set_ao_volume);

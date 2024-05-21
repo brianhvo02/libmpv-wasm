@@ -351,10 +351,6 @@ void init_mpv() {
     }
 
     mpv_set_property_string(mpv, "vo", "libmpv");
-    int flag = 1;
-    mpv_set_property(mpv, "opengl-pbo", MPV_FORMAT_FLAG, &flag);
-    mpv_set_property(mpv, "gpu-debug", MPV_FORMAT_FLAG, &flag);
-    mpv_set_property_string(mpv, "gpu-api", "opengl");
 
     if (mpv_initialize(mpv) < 0) {
         die("mpv init failed");

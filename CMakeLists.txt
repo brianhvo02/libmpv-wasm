@@ -15,11 +15,12 @@ include_directories (${SDL3_INCLUDE_DIRS})
 link_directories (${SDL3_STATIC_LIBRARY_DIRS})
 add_executable(libmpv libmpv.cpp)
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
-set_target_properties(libmpv PROPERTIES LINK_FLAGS "-pthread -lembind -lopenal -lopfs.js -sWASMFS \
--sMODULARIZE -sINITIAL_MEMORY=1GB -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT \
--sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader' \
--sFULL_ES3 --preload-file ../shaders@/shaders")
-set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-pthread")
+set(CMAKE_VERBOSE_MAKEFILE true)
+set_target_properties(libmpv PROPERTIES LINK_FLAGS "-sUSE_PTHREADS -lembind -lopenal -lopfs.js -sWASMFS \
+-sMODULARIZE -sINITIAL_MEMORY=1GB -sPROXY_TO_PTHREAD -sOFFSCREENCANVAS_SUPPORT -sFULL_ES3 \
+-sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader' \
+--preload-file ../shaders@/shaders")
+set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")
 add_definitions (${MPV_CFLAGS_OTHER})
 target_link_libraries (libmpv ${MPV_LIBRARIES})
 target_link_libraries (libmpv ${MPV_STATIC_LIBRARIES})

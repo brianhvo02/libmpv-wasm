@@ -212,6 +212,17 @@ void main_loop() {
                                         }));
                                     }, evt->name);
                                     break;
+                                case MPV_FORMAT_STRING: {
+                                    const char **data = (const char **)evt->data;
+                                    EM_ASM({
+                                        postMessage(JSON.stringify({
+                                            type: 'property-change',
+                                            name: UTF8ToString($0),
+                                            value: UTF8ToString($1)
+                                        }));
+                                    }, evt->name, *data);
+                                    break;
+                                }
                                 case MPV_FORMAT_FLAG: {
                                     int *data = (int *)evt->data;
                                     EM_ASM({
@@ -339,7 +350,11 @@ void init_mpv() {
         die("context init failed");
     }
 
-    mpv_set_option_string(mpv, "vo", "libmpv");
+    mpv_set_property_string(mpv, "vo", "libmpv");
+    int flag = 1;
+    mpv_set_property(mpv, "opengl-pbo", MPV_FORMAT_FLAG, &flag);
+    mpv_set_property(mpv, "gpu-debug", MPV_FORMAT_FLAG, &flag);
+    mpv_set_property_string(mpv, "gpu-api", "opengl");
 
     if (mpv_initialize(mpv) < 0) {
         die("mpv init failed");

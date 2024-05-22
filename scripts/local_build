@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+npm install
+
+mkdir -p build
+scripts/rebuild
+scripts/link_build
+
+cp package.json src/types/libmpv.d.ts build
+node_modules/typescript/tsc

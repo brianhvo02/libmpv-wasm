@@ -4,5 +4,7 @@ set -e
 
 rm -f node_modules/libmpv-wasm
 rm -f demo/node_modules/libmpv-wasm
+rm -f demo-vanilla/node_modules/libmpv-wasm
 ln -s ../build node_modules/libmpv-wasm
 ln -s ../../build demo/node_modules/libmpv-wasm
+ln -s ../../build demo-vanilla/node_modules/libmpv-wasm

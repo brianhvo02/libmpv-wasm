@@ -206,7 +206,9 @@ void main_loop() {
                         break;
                     switch (mp_event->event_id) {
                         case MPV_EVENT_IDLE:
-                            EM_ASM(postMessage(JSON.stringify({ type: 'idle' })););
+                            EM_ASM({
+                                postMessage(JSON.stringify({ type: 'idle', shaderCount: $0 }));
+                            }, get_shader_count());
                             break;
                         case MPV_EVENT_LOG_MESSAGE: {
                             mpv_event_log_message *msg = (mpv_event_log_message*)mp_event->data;

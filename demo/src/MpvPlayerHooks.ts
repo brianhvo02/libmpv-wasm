@@ -55,93 +55,23 @@ export const useMpvPlayer = () => {
     useEffect(() => {
         if (!canvasRef.current || ranOnce.current) return;
 
-        MpvPlayer.load(canvasRef.current, '/static/js/libmpv.js')
-            .then(player => {
-                const proxy = new Proxy(player, {
-                    apply(target, thisArg, argArray) {
-                        console.log('Unimplemented apply:', target, thisArg, argArray);
-                    },
-                    set(target, p, newValue) {
-                        switch (p) {
-                            case 'idle':
-                                target.idle = newValue;
-                                setIdle(newValue);
-                                break;
-                            case 'isPlaying':
-                                target.isPlaying = newValue;
-                                setIsPlaying(newValue);
-                                break;
-                            case 'duration':
-                                target.duration = newValue;
-                                setDuration(newValue);
-                                break;
-                            case 'elapsed':
-                                target.elapsed = newValue;
-                                setElapsed(newValue);
-                                break;
-                            // case 'volume':
-                            //     target.volume = newValue;
-                            //     setVolume(newValue);
-                            //     break;
-                            case 'videoStream':
-                                target.videoStream = parseInt(newValue);
-                                setVideoStream(parseInt(newValue));
-                                break;
-                            case 'videoTracks':
-                                target.videoTracks = newValue;
-                                setVideoTracks(newValue);
-                                break;
-                            case 'audioStream':
-                                target.audioStream = parseInt(newValue);
-                                setAudioStream(parseInt(newValue));
-                                break;
-                            case 'audioTracks':
-                                target.audioTracks = newValue;
-                                setAudioTracks(newValue);
-                                break;
-                            case 'subtitleStream':
-                                target.subtitleStream = parseInt(newValue);
-                                setSubtitleStream(parseInt(newValue));
-                                break;
-                            case 'subtitleTracks':
-                                target.subtitleTracks = newValue;
-                                setSubtitleTracks(newValue);
-                                break;
-                            case 'currentChapter':
-                                target.currentChapter = parseInt(newValue);
-                                setCurrentChapter(parseInt(newValue));
-                                break;
-                            case 'chapters':
-                                target.chapters = newValue;
-                                setChapters(newValue);
-                                break;
-                            case 'isSeeking':
-                                target.isSeeking = newValue;
-                                break;
-                            case 'uploading':
-                                target.uploading = newValue;
-                                setUploading(newValue);
-                                break;
-                            case 'files':
-                                target.files = newValue;
-                                setFiles(newValue);
-                                break;
-                            case 'shaderCount':
-                                target.shaderCount = newValue;
-                                setShaderCount(newValue);
-                                break;
-                            default:
-                                console.log('Unimplemented set:', p);
-                                return false;
-                        }
-                        
-                        return true;
-                    },
-                });
-
-                player.setProxy(proxy);
-                setMpvPlayer(proxy);
-            });
+        MpvPlayer.load(canvasRef.current, '/static/js/libmpv.js', {
+            idle: setIdle,
+            isPlaying: setIsPlaying,
+            duration: setDuration,
+            elapsed: setElapsed,
+            videoStream: setVideoStream,
+            videoTracks: setVideoTracks,
+            audioStream: setAudioStream,
+            audioTracks: setAudioTracks,
+            subtitleStream: setSubtitleStream,
+            subtitleTracks: setSubtitleTracks,
+            currentChapter: setCurrentChapter,
+            chapters: setChapters,
+            uploading: setUploading,
+            files: setFiles,
+            shaderCount: setShaderCount,
+        }).then(setMpvPlayer);
 
         ranOnce.current = true;
     }, []);

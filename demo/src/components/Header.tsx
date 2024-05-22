@@ -172,7 +172,7 @@ const Header = () => {
                     { player.files.map(file =>
                     <li key={file} onClick={() => {
                         if (!player?.mpvPlayer) return;
-                        player.mpvPlayer.module.loadFile('/opfs/mnt/' + file);
+                        player.mpvPlayer.loadFile(file);
                         setLibraryMenu(false);
                         player.setTitle(file);
                     }}>

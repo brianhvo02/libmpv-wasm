@@ -1,10 +1,37 @@
 import libmpvLoader from 'libmpv-wasm/libmpv';
-import type { LibmpvModule } from './types/libmpv';
+import { LibmpvModule } from './types/libmpv';
 import _ from 'lodash';
 import { isAudioTrack, isVideoTrack } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
 
 const LIMIT = 4 * 1024 * 1024 * 1024;
+
+type ProxyHandle<K, V> = (this: MpvPlayer, value: V, key: K) => void;
+interface ProxyOptions {
+    idle: ProxyHandle<'idle', MpvPlayer['idle']>;
+    isPlaying: ProxyHandle<'isPlaying', MpvPlayer['isPlaying']>;
+    duration: ProxyHandle<'duration', MpvPlayer['duration']>;
+    elapsed: ProxyHandle<'elapsed', MpvPlayer['elapsed']>;
+    videoStream: ProxyHandle<'videoStream', MpvPlayer['videoStream']>;
+    videoTracks: ProxyHandle<'videoTracks', MpvPlayer['videoTracks']>;
+    audioStream: ProxyHandle<'audioStream', MpvPlayer['audioStream']>;
+    audioTracks: ProxyHandle<'audioTracks', MpvPlayer['audioTracks']>;
+    subtitleStream: ProxyHandle<'subtitleStream', MpvPlayer['subtitleStream']>;
+    subtitleTracks: ProxyHandle<'subtitleTracks', MpvPlayer['subtitleTracks']>;
+    currentChapter: ProxyHandle<'currentChapter', MpvPlayer['currentChapter']>;
+    chapters: ProxyHandle<'chapters', MpvPlayer['chapters']>;
+    isSeeking: ProxyHandle<'isSeeking', MpvPlayer['isSeeking']>;
+    uploading: ProxyHandle<'uploading', MpvPlayer['uploading']>;
+    files: ProxyHandle<'files', MpvPlayer['files']>;
+    shaderCount: ProxyHandle<'shaderCount', MpvPlayer['shaderCount']>;
+}
+
+const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => [
+    'idle', 'isPlaying', 'duration', 'elapsed',
+    'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
+    'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters',
+    'isSeeking', 'uploading', 'files', 'shaderCount'
+].includes(typeof prop === 'symbol' ? prop.toString() : prop);
 
 export default class MpvPlayer {
     module: LibmpvModule;
@@ -31,68 +58,91 @@ export default class MpvPlayer {
     uploading = false;
     files: string[] = [];
 
-    shaderCount = 0;
+    shaderCount = -1;
 
-    proxy: MpvPlayer | null = null;
+    proxy: MpvPlayer;
 
-    private constructor(module: LibmpvModule) {
+    private constructor(module: LibmpvModule, options: Partial<ProxyOptions>) {
         this.module = module;
+
+        this.proxy = new Proxy(this, {
+            set(target, prop, newValue) {
+                if (!isMpvPlayerProperty(prop))
+                    return false;
+                
+                if (typeof newValue !== typeof target[prop])
+                    return false;
+
+                if (prop === 'idle' && target.idle != newValue) {
+                    if (!target.fsWorker)
+                        target.setupFsWorker();
+
+                    target.getFiles();
+                }
+
+                // @ts-ignore
+                target[prop] = newValue;
+
+                // @ts-ignore
+                if (options[prop]) {
+                    // @ts-ignore
+                    options[prop].call(target, newValue, prop);
+                }
+                
+                return true;
+            },
+        });
+        
+        this.setupMpvWorker();
     }
 
-    static async load(canvas: HTMLCanvasElement, mainScriptUrlOrBlob?: string) {
+    static async load(
+        canvas: HTMLCanvasElement, mainScriptUrlOrBlob: string, options: Partial<ProxyOptions> = {}
+    ) {
         const module = await libmpvLoader({
             canvas,
             mainScriptUrlOrBlob,
         });
 
-        return new this(module);
-    }
-
-    setProxy(proxy: MpvPlayer) {
-        this.proxy = proxy;
-
-        this.setupMpvWorker();
+        return new this(module, options);
     }
 
     setupMpvWorker() {
-        const player = this.proxy ?? this;
-
         this.mpvWorker = this.module.PThread.runningWorkers.concat(this.module.PThread.unusedWorkers)[0];
         const listener = (e: MessageEvent) => {
             try {
                 const payload = JSON.parse(e.data);
                 switch (payload.type) {
                     case 'idle':
-                        if (player.idle !== payload.value) {
-                            this.setupFsWorker();
-                            player.getFiles();
-                            player.shaderCount = this.module.getShaderCount();
-                        }
-                        player.idle = true;
+                        this.proxy.idle = true;
+                        this.proxy.shaderCount = payload.shaderCount;
                         break;
                     case 'property-change':
                         switch (payload.name) {
                             case 'pause':
-                                player.isPlaying = !payload.value;
+                                this.proxy.isPlaying = !payload.value;
                                 break;
                             case 'duration':
-                                player.duration = payload.value;
+                                this.proxy.duration = payload.value;
                                 break;
                             case 'playback-time':
                                 if (!this.isSeeking)
-                                    player.elapsed = payload.value;
+                                    this.proxy.elapsed = payload.value;
                                 break;
                             case 'vid':
-                                player.videoStream = parseInt(payload.value);
+                                this.proxy.videoStream = parseInt(payload.value);
                                 break;
                             case 'aid':
-                                player.audioStream = parseInt(payload.value);
+                                this.proxy.audioStream = parseInt(payload.value);
                                 break;
                             case 'sid':
-                                player.subtitleStream = parseInt(payload.value);
+                                this.proxy.subtitleStream = parseInt(payload.value);
                                 break;
                             case 'chapter':
-                                player.currentChapter = parseInt(payload.value);
+                                this.proxy.currentChapter = parseInt(payload.value);
+                                break;
+                            case 'shaderCount':
+                                this.proxy.shaderCount = payload.value;
                                 break;
                             default:
                                 console.log(`event: property-change -> { name: ${
@@ -131,12 +181,12 @@ export default class MpvPlayer {
                             }
                         );
                         
-                        player.videoTracks = videoTracks;
-                        player.audioTracks = audioTracks;
-                        player.subtitleTracks = subtitleTracks;
+                        this.proxy.videoTracks = videoTracks;
+                        this.proxy.audioTracks = audioTracks;
+                        this.proxy.subtitleTracks = subtitleTracks;
                         break;
                     case "chapter-list":
-                        player.chapters = payload.chapters;
+                        this.proxy.chapters = payload.chapters;
                         break;
                     default:
                         console.log('Recieved payload:', payload);
@@ -151,18 +201,16 @@ export default class MpvPlayer {
     }
 
     setupFsWorker() {
-        const player = this.proxy ?? this;
-
-        const threadId = player.module.getFsThread();
-        this.fsWorker = player.module.PThread.pthreads[threadId.toString()];
+        const threadId = this.proxy.module.getFsThread();
+        this.fsWorker = this.proxy.module.PThread.pthreads[threadId.toString()];
 
         const listener = (e: MessageEvent) => {
             const payload = JSON.parse(e.data);
             switch (payload.type) {
                 case 'upload':
                     console.log('Upload finished');
-                    player.getFiles();
-                    player.uploading = false;
+                    this.proxy.getFiles();
+                    this.proxy.uploading = false;
                     break;
                 default:
                     console.log('Recieved payload:', payload);
@@ -176,7 +224,8 @@ export default class MpvPlayer {
         .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
         .then(dirHandle => Array.fromAsync(dirHandle.keys()))
         .then(files => {
-            (this.proxy ?? this).files = files;
+            if (files.length !== this.files.length)
+                this.proxy.files = files;
             return files;
         });
 
@@ -201,4 +250,6 @@ export default class MpvPlayer {
         this.uploading = true;
         this.fsWorker.postMessage(pickedFiles);
     }
+
+    loadFile = (path: string) => this.module.loadFile('/opfs/mnt/' + path);
 }

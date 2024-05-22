@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+tsc
+install src/libmpv.d.ts build
+cat src/types/index.d.ts >> build/index.d.ts
+
+if ! [ -d "demo/node_modules/libmpv-wasm" ]; then
+    scripts/link
+fi

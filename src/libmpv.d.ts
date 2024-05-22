@@ -18,6 +18,8 @@ interface EmbindModule {
     setAudioTrack(id: bigint): void;
     setSubtitleTrack(id: bigint): void;
     setChapter(id: bigint): void;
+    skipForward(): void;
+    skipBackward(): void;
     getFsThread(): bigint;
     addShaders(): void;
     clearShaders(): void;
@@ -29,8 +31,8 @@ interface LoaderOptions {
     mainScriptUrlOrBlob: string | Blob;
 }
 
-export type LibmpvModule = typeof RuntimeExports & EmbindModule;
-export type LibmpvLoaderOptions = {
+type LibmpvModule = typeof RuntimeExports & EmbindModule;
+type LibmpvLoaderOptions = {
     canvas: HTMLCanvasElement,
     mainScriptUrlOrBlob: string,
 }

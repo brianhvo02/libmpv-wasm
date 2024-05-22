@@ -8,3 +8,5 @@ shaders/*
 .vercel/output/static
 src/libmpv.js
 /public
+
+.DS_Store

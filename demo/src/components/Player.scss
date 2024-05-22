@@ -1,15 +1,12 @@
 .player {
-    --top: 4rem;
+    position: absolute;
+    z-index: 0;
 
-    position: fixed;
-    top: var(--top);
-    right: 0;
-    bottom: 0;
+    top: 0;
     left: 0;
-    z-index: 10;
 
     width: 100%;
-    height: calc(100% - var(--top));
+    height: 100%;
     transition: 0.3s;
 
     color: white;
@@ -18,6 +15,8 @@
     display: flex;
     justify-content: flex-end;
     flex-direction: column;
+
+    outline: none;
 
     .other-controls {
         position: absolute;

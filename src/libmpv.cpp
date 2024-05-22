@@ -78,7 +78,7 @@ void load_file(string path) {
         return;
     }
 
-    const char *cmd[] = {"loadfile", path.c_str(), NULL};
+    const char * cmd[] = {"loadfile", path.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -90,12 +90,12 @@ void load_url(string url) {
         return;
     }
 
-    const char *cmd[] = {"loadfile", url.c_str(), NULL};
+    const char * cmd[] = {"loadfile", url.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
 void toggle_play() {
-    const char *cmd[] = {"cycle", "pause", NULL};
+    const char * cmd[] = {"cycle", "pause", NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -131,14 +131,24 @@ void set_chapter(int64_t idx) {
     mpv_set_property_async(mpv, 0, "chapter", MPV_FORMAT_INT64, &idx);
 }
 
+void skip_forward() {
+    const char * cmd[] = {"seek", "10", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void skip_backward() {
+    const char * cmd[] = {"seek", "-10", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
 void add_shaders() {
     const char *shader_list = "/shaders/Anime4K_Clamp_Highlights.glsl:/shaders/Anime4K_Restore_CNN_VL.glsl:/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:/shaders/Anime4K_AutoDownscalePre_x2.glsl:/shaders/Anime4K_AutoDownscalePre_x4.glsl:/shaders/Anime4K_Upscale_CNN_x2_M.glsl";
-    const char *cmd[] = {"change-list", "glsl-shaders", "set", shader_list, NULL};
+    const char * cmd[] = {"change-list", "glsl-shaders", "set", shader_list, NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
 void clear_shaders() {
-    const char *cmd[] = {"change-list", "glsl-shaders", "clr", "", NULL};
+    const char * cmd[] = {"change-list", "glsl-shaders", "clr", "", NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -396,7 +406,7 @@ void init_mpv() {
         die("SDL init failed");
     }
     
-    window = SDL_CreateWindow("Media Player", WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
+    window = SDL_CreateWindow("mpv Media Player", WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
 
     if (!window)
         die("failed to create SDL window");
@@ -465,6 +475,8 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("setAudioTrack", &set_audio_track);
     emscripten::function("setSubtitleTrack", &set_subtitle_track);
     emscripten::function("setChapter", &set_chapter);
+    emscripten::function("skipForward", &skip_forward);
+    emscripten::function("skipBackward", &skip_backward);
     emscripten::function("getFsThread", &get_fs_thread);
     emscripten::function("addShaders", &add_shaders);
     emscripten::function("clearShaders", &clear_shaders);

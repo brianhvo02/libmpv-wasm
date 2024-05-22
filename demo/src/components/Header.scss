@@ -1,8 +1,8 @@
 header {
-    position: sticky;
+    position: absolute;
 
-    z-index: 5;
-    top: 0;
+    z-index: 10;
+    top: -4rem;
 
     height: 4rem;
     width: 100%;
@@ -14,6 +14,8 @@ header {
     // justify-content: space-between;
 
     background-color: #23252b;
+
+    transition: .1s cubic-bezier(0,0,.25,1);
 
     .logo {
         display: flex;
@@ -99,4 +101,14 @@ header {
             cursor: pointer;
         }
     }
+}
+
+.header-detector {
+    height: 4rem;
+    width: 100%;
+
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
 }

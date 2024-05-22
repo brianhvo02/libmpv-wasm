@@ -1,18 +1,32 @@
 {
+    "env": {
+        "includePath": [
+            "${workspaceFolder}/**",
+            "${EMSDK}/upstream/emscripten/cache/sysroot/**",
+            "${workspaceFolder}/build_libs/**"
+        ]
+    },
     "configurations": [
         {
             "name": "Linux",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${EMSDK}/upstream/emscripten/cache/sysroot/**",
-                "${workspaceFolder}/build_libs/**"
-            ],
+            "includePath": ["${includePath}"],
             "defines": [],
             "compilerPath": "/usr/bin/clang-15",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-clang-x64"
+        },
+        {
+            "name": "Mac",
+            "includePath": ["${includePath}"],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "macFrameworkPath": ["/System/Library/Frameworks", "/Library/Frameworks"],
+            "intelliSenseMode": "macos-clang-x64"
         }
     ],
-    "version": 4
+    "version": 4,
+    "enableConfigurationSquiggles": false
 }

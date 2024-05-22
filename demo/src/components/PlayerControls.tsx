@@ -2,7 +2,7 @@ import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from
 import { Player } from '../MpvPlayerHooks';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBookmark, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBookmark, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
 
@@ -16,7 +16,11 @@ const transformOrigin: PopoverOrigin = {
     horizontal: 'center'
 }
 
-const PlayerControls = ({ player }: { player: Player }) => {
+interface PlayerControlsProps {
+    player: Player;
+}
+
+const PlayerControls = ({ player }: PlayerControlsProps) => {
     const {
         mpvPlayer, playerRef, setVolume, setElapsed,
         title, elapsed, duration, isPlaying, volume,
@@ -57,13 +61,15 @@ const PlayerControls = ({ player }: { player: Player }) => {
     }, []);
 
     useEffect(() => {
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('click', onMouseMove);
+        const playerRef = player.playerRef.current;
+        if (!playerRef) return;
+
+        playerRef.addEventListener('mousemove', onMouseMove);
 
         return () => {
-            document.removeEventListener('mousemove', onMouseMove);
+            playerRef.removeEventListener('mousemove', onMouseMove);
         }
-    }, [onMouseMove]);
+    }, [onMouseMove, player]);
 
     const pointerStyle: CSSProperties = useMemo(() => {
         return { pointerEvents: mouseIsMoving ? 'auto' : 'none' };
@@ -111,6 +117,16 @@ const PlayerControls = ({ player }: { player: Player }) => {
                     <FontAwesomeIcon 
                         icon={isPlaying ? faPause : faPlay} 
                         onClick={() => mpvPlayer.module.togglePlay()}
+                        style={pointerStyle}
+                    />
+                    <FontAwesomeIcon 
+                        icon={faBackwardStep} 
+                        onClick={() => mpvPlayer.module.skipBackward()}
+                        style={pointerStyle}
+                    />
+                    <FontAwesomeIcon 
+                        icon={faForwardStep} 
+                        onClick={() => mpvPlayer.module.skipForward()}
                         style={pointerStyle}
                     />
                 </div>

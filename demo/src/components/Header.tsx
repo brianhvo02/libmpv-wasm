@@ -38,7 +38,7 @@ const paperStyle: SxProps<Theme> = {
     outline: 'none'
 }
 
-const Header = () => {
+const Header = ({ openHeader }: { openHeader: boolean }) => {
     const player = useContext(PlayerContext);
     // const [libraryMenu, setLibraryMenu] = useState(false);
     // const [openUrlMenu, setOpenUrlMenu] = useState(false);
@@ -65,7 +65,7 @@ const Header = () => {
     // }
 
     return (
-        <header ref={headerRef}>
+        <header ref={headerRef} style={openHeader ? { top: 0 } : {}}>
             <div className='logo'>
                 <img src='/logo192.png' alt='mpv logo' />
                 <h1>mpv</h1>
@@ -89,6 +89,8 @@ const Header = () => {
                     if (!path.length) return;
                     player.mpvPlayer?.loadFile(path);
                     player.setTitle(path);
+                    if (!player.isPlaying)
+                        player.mpvPlayer?.module.togglePlay();
                     setOpenFileExplorer(false);
                 })
             } openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} />

@@ -2,7 +2,7 @@ import libmpvLoader from './libmpv.js';
 import _ from 'lodash';
 import { isAudioTrack, isVideoTrack } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
-import { LibmpvModule } from './types/libmpv.js';
+import { LibmpvModule } from './libmpv';
 
 const LIMIT = 4 * 1024 * 1024 * 1024;
 

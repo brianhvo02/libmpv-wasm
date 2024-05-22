@@ -38,11 +38,3 @@ else
     fi
     scripts/rebuild
 fi
-
-tsc
-cat src/types/libmpv.d.ts >> build/libmpv.d.ts
-cat src/types/index.d.ts >> build/index.d.ts
-
-if ! [ -d "demo/node_modules/libmpv-wasm" ]; then
-    scripts/link
-fi

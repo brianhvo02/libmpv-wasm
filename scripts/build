@@ -2,6 +2,18 @@
 
 set -e
 
+if ! [ -d "node_modules" ]; then
+    npm install
+fi
+
+if ! [ -d "demo/node_modules" ]; then
+    npm --prefix demo install
+fi
+
+if ! [ -d "demo-vanilla/node_modules" ]; then
+    npm --prefix demo-vanilla install
+fi
+
 if ! [ -f "node_modules/typescript/bin/tsc" ]; then
     echo "tsc command not found"
     exit 1
@@ -14,6 +26,8 @@ if ! [ -n $BUILD_PATH ]; then
 fi
 
 if [ -n $DOCKER_BUILD ]; then
+    docker pull brianhvo02/em_mpv:latest
+
     if [ "$COUNT" -eq 1 ]; then
         docker run --rm -v .:/src/app -w /src/app $USER_OPTION brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
     fi

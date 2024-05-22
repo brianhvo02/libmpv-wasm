@@ -88,6 +88,7 @@ const Header = () => {
                 pathPromise.then(path => {
                     if (!path.length) return;
                     player.mpvPlayer?.loadFile(path);
+                    player.setTitle(path);
                     setOpenFileExplorer(false);
                 })
             } openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} />

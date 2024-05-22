@@ -91,10 +91,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
         if (!rootDir.current || !parent) return;
 
         history.current[history.current.length - 1].isSameEntry(parent)
-            .then(isSame => {
-                console.log(isSame, history.current, parent)
-                !isSame && history.current.push(parent);
-            });
+            .then(isSame => !isSame && history.current.push(parent));
 
         rootDir.current.isSameEntry(parent)
             .then(setIsRootDir);

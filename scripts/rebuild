@@ -6,4 +6,6 @@ set -e
 ./scripts/build_wasm "$@"
 install build/libmpv.js build/libmpv.wasm demo/public/static/js
 install build/libmpv.data demo/public
+
+mkdir -p demo-vanilla/dist
 install build/libmpv.js build/libmpv.wasm build/libmpv.data demo-vanilla/dist

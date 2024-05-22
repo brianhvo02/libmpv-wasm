@@ -7,3 +7,4 @@ shaders/*
 !shaders/.keep
 .vercel/output/static
 src/libmpv.js
+/public

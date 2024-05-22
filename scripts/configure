@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-if [ -z DOCKER_BUILD ]; then
-    PC_PATH="$(pwd)/build_libs/lib/pkgconfig"
-else
+if [ -n DOCKER_BUILD ]; then
     PC_PATH="/src/build_libs/lib/pkgconfig"
+else
+    PC_PATH="$(pwd)/build_libs/lib/pkgconfig"
 fi
 
 case "$PKG_CONFIG_PATH" in

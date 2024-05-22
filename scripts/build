@@ -9,11 +9,15 @@ fi
 
 COUNT=$(find shaders -type f | wc -l)
 
+if ! [ -n $BUILD_PATH ]; then
+    USER_OPTION="-u $(id -u):$(id -g)"
+fi
+
 if [ -n $DOCKER_BUILD ]; then
     if [ "$COUNT" -eq 1 ]; then
-        docker run --rm -v .:/src/app -w /src/app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
+        docker run --rm -v .:/src/app -w /src/app $USER_OPTION brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
     fi
-    docker run --rm -v .:/src/app -w /src/app brianhvo02/em_mpv:latest scripts/rebuild
+    docker run --rm -v .:/src/app -w /src/app $USER_OPTION brianhvo02/em_mpv:latest scripts/rebuild
 else
     if [ "$COUNT" -eq 1 ]; then
         scripts/dl_a4k_shaders

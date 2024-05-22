@@ -1,19 +1,20 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import './Header.scss';
 import { useContext, useRef, useState } from 'react';
-import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
-import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, Theme } from '@mui/material';
+import { Button, CircularProgress, Modal, Paper, SxProps, Theme } from '@mui/material';
 import { PlayerContext } from '../MpvPlayerHooks';
+import FileExplorer from './FileExplorer';
+// import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+// import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 
-const anchorOrigin: PopoverOrigin = {
-    vertical: 'bottom',
-    horizontal: 'left'
-}
+// const anchorOrigin: PopoverOrigin = {
+//     vertical: 'bottom',
+//     horizontal: 'left'
+// }
 
-const transformOrigin: PopoverOrigin = {
-    vertical: 'top',
-    horizontal: 'left'
-}
+// const transformOrigin: PopoverOrigin = {
+//     vertical: 'top',
+//     horizontal: 'left'
+// }
 
 const paperStyle: SxProps<Theme> = {
     position: 'absolute',
@@ -39,12 +40,13 @@ const paperStyle: SxProps<Theme> = {
 
 const Header = () => {
     const player = useContext(PlayerContext);
-    const [libraryMenu, setLibraryMenu] = useState(false);
-    const [openUrlMenu, setOpenUrlMenu] = useState(false);
+    // const [libraryMenu, setLibraryMenu] = useState(false);
+    // const [openUrlMenu, setOpenUrlMenu] = useState(false);
+    const [openFileExplorer, setOpenFileExplorer] = useState(false);
     const [error, setError] = useState<string | null>(null);
     
+    // const libraryRef = useRef<HTMLDivElement>(null);
     const headerRef = useRef<HTMLElement>(null);
-    const libraryRef = useRef<HTMLDivElement>(null);
 
     // OpenSSL capabilities
     // const [url, setUrl] = useState('');
@@ -76,20 +78,22 @@ const Header = () => {
                     <Button onClick={() => setError(null)}>Close</Button>
                 </Paper>
             </Modal>
-            <Modal open={player.uploading}>
+            <Modal open={!!player.uploading}>
                 <Paper sx={paperStyle}>
                     <CircularProgress />
-                    <h2>Uploading files...</h2>
+                    <h2>Uploading {player.uploading}</h2>
                 </Paper>
             </Modal>
-            <label className='navbar' onClick={() => 
-                typeof showOpenFilePicker !== 'undefined' &&
-                player.mpvPlayer?.uploadFiles()
-            }>
-                <span>Upload</span>
-                { typeof showOpenFilePicker === 'undefined' &&
-                <input type='file' onChange={e => player.mpvPlayer?.uploadFiles(Array.from(e.target.files ?? []))} />}
-            </label>
+            <FileExplorer onFileClick={pathPromise => 
+                pathPromise.then(path => {
+                    if (!path.length) return;
+                    player.mpvPlayer?.loadFile(path);
+                    setOpenFileExplorer(false);
+                })
+            } openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} />
+            <div className='navbar' onClick={() => setOpenFileExplorer(true)}>
+                <span>Open</span>
+            </div>
             {/* OpenSSL capabilities */}
             {/* <div className='navbar' ref={openUrlRef} style={
                 openUrlMenu ? { backgroundColor: '#141519' } : {}
@@ -133,7 +137,7 @@ const Header = () => {
                 <Button onClick={handleUrlLoadClick}
                     variant="contained">Load</Button>
             </Popover> */}
-            <div className='navbar' ref={libraryRef} style={
+            {/* <div className='navbar' ref={libraryRef} style={
                 libraryMenu ? { backgroundColor: '#141519' } : {}
             } onClick={() => {
                 setLibraryMenu(prev => !prev);
@@ -180,7 +184,7 @@ const Header = () => {
                     </li>
                     ) }
                 </ul>
-            </Popover>
+            </Popover> */}
             { player.shaderCount > 0 && <>
             <div className='navbar' onClick={() => player.mpvPlayer?.module.addShaders()}>
                 <span>Add Shaders</span>

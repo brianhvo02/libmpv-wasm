@@ -10,7 +10,7 @@
         "@fortawesome/free-regular-svg-icons": "^6.5.2",
         "@fortawesome/free-solid-svg-icons": "^6.5.2",
         "@fortawesome/react-fontawesome": "^0.2.0",
-        "@mui/icons-material": "^5.15.17",
+        "@mui/icons-material": "^5.15.18",
         "@mui/material": "^5.15.17",
         "lodash": "^4.17.21",
         "react": "^18.3.1",

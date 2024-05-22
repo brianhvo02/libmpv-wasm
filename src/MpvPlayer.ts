@@ -55,7 +55,7 @@ export default class MpvPlayer {
     chapters: Chapter[] = [];
 
     isSeeking = false;
-    uploading = false;
+    uploading = '';
     files: string[] = [];
 
     shaderCount = -1;
@@ -208,9 +208,14 @@ export default class MpvPlayer {
             const payload = JSON.parse(e.data);
             switch (payload.type) {
                 case 'upload':
-                    console.log('Upload finished');
+                    console.log('Uploading', payload.filename);
                     this.proxy.getFiles();
-                    this.proxy.uploading = false;
+                    this.proxy.uploading = payload.filename;
+                    break;
+                case 'upload-complete':
+                    console.log('Upload completed');
+                    this.proxy.getFiles();
+                    this.proxy.uploading = '';
                     break;
                 default:
                     console.log('Recieved payload:', payload);
@@ -221,19 +226,23 @@ export default class MpvPlayer {
     }
 
     getFiles = async () => navigator.storage.getDirectory()
-        .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-        .then(dirHandle => Array.fromAsync(dirHandle.keys()))
-        .then(files => {
+        .then(opfsRoot => Array.fromAsync(opfsRoot.entries()))
+        .then(entries => {
+            const files = entries
+                .filter(([, handle]) => handle.kind === 'file')
+                .map(([name]) => name);
+
             if (files.length !== this.files.length)
                 this.proxy.files = files;
-            return files;
+
+            return files
         });
 
-    async uploadFiles(files?: File[]) {
+    async uploadFiles(path: string, files?: File[]) {
         if (!this.fsWorker)
             throw new Error('File system worker not initialized.');
 
-        const pickedFiles = files ?? await showOpenFilePicker()
+        const pickedFiles = files ?? await showOpenFilePicker({ multiple: true })
             .then(files => Promise.all(files.map(file => file.getFile())))
             .catch(e => console.error(e));
 
@@ -247,9 +256,9 @@ export default class MpvPlayer {
             throw new Error('File size exceeds 4GB file limit.');
         }
 
-        this.uploading = true;
-        this.fsWorker.postMessage(pickedFiles);
+        this.proxy.uploading = pickedFiles[0].name;
+        this.fsWorker.postMessage({ path, files: pickedFiles });
     }
 
-    loadFile = (path: string) => this.module.loadFile('/opfs/mnt/' + path);
+    loadFile = (path: string) => this.module.loadFile('/opfs/' + path);
 }

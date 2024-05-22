@@ -157,10 +157,21 @@ int get_shader_count() {
 void* load_fs(void *args) {
     EM_ASM(
         onmessage = async e => {
-            for (const file of e.data) {
-                const fileHandle = await navigator.storage.getDirectory()
-                    .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }));
+            let dirHandle;
+            const segments = e.data.path.split('/');
+            for (const segment of segments) {
+                if (!segment.length) {
+                    dirHandle = await navigator.storage.getDirectory();
+                    continue;
+                }
+                
+                dirHandle = await dirHandle.getDirectoryHandle(segment, { create: true });
+            }
+
+            for (const file of e.data.files) {
+                postMessage(JSON.stringify({ type: 'upload', filename: file.name }));
+                
+                const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
 
                 if (fileHandle.createWritable) {
                     const writable = await fileHandle.createWritable();
@@ -175,7 +186,7 @@ void* load_fs(void *args) {
                 }
             }
 
-            postMessage(JSON.stringify({ type: 'upload' }));
+            postMessage(JSON.stringify({ type: 'upload-complete' }));
         }
     );
 

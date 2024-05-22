@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${EMSDK}/upstream/emscripten/cache/sysroot/**"
+                "${EMSDK}/upstream/emscripten/cache/sysroot/**",
+                "${workspaceFolder}/build_libs/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang-15",

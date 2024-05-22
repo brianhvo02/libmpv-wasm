@@ -1,0 +1,22 @@
+.file-explorer {
+    .header {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+
+        gap: 1.5rem;
+
+        h2 {
+            font-size: 1.5rem;
+            line-height: 2rem;
+            font-weight: bold;
+        }
+    }
+
+    .footer {
+        display: flex;
+        flex-direction: row;
+
+        justify-content: space-around;
+    }
+}

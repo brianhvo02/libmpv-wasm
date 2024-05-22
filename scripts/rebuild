@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-apt-get update
-apt-get install pkg-config
 ./scripts/clean
 ./scripts/configure
 ./scripts/build_wasm "$@"

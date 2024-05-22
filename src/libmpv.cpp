@@ -158,13 +158,21 @@ void* load_fs(void *args) {
     EM_ASM(
         onmessage = async e => {
             for (const file of e.data) {
-                const writable = await navigator.storage.getDirectory()
+                const fileHandle = await navigator.storage.getDirectory()
                     .then(opfsRoot => opfsRoot.getDirectoryHandle('mnt', { create: true }))
-                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }))
-                    .then(accessHandle => accessHandle.createWritable());
-                console.log('Writing', file.name);
-                await writable.write(file);
-                await writable.close();
+                    .then(dirHandle => dirHandle.getFileHandle(file.name, { create: true }));
+
+                if (fileHandle.createWritable) {
+                    const writable = await fileHandle.createWritable();
+                    console.log('Writing', file.name);
+                    await writable.write(file);
+                    await writable.close();
+                } else {
+                    const accessHandle = await fileHandle.createSyncAccessHandle();
+                    const buf = await file.arrayBuffer();
+                    accessHandle.write(buf);
+                    accessHandle.close();
+                }
             }
 
             postMessage(JSON.stringify({ type: 'upload' }));
@@ -367,7 +375,7 @@ void init_mpv() {
         die("mpv init failed");
     }
 
-    mpv_request_log_messages(mpv, "trace");
+    // mpv_request_log_messages(mpv, "debug");
 
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 

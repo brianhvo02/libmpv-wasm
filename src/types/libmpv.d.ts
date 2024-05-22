@@ -14,13 +14,19 @@ interface EmbindModule {
     setVolume(volume: number): void;
     getTracks(): void;
     getChapters(): void;
-    setVideoTrack(id: number): void;
-    setAudioTrack(id: number): void;
-    setSubtitleTrack(id: number): void;
-    getFsThread(): BigInt;
+    setVideoTrack(id: bigint): void;
+    setAudioTrack(id: bigint): void;
+    setSubtitleTrack(id: bigint): void;
+    setChapter(id: bigint): void;
+    getFsThread(): bigint;
     addShaders(): void;
     clearShaders(): void;
     getShaderCount(): number;
+}
+
+interface LoaderOptions {
+    canvas: HTMLCanvasElement;
+    mainScriptUrlOrBlob: string | Blob;
 }
 
 export type LibmpvModule = typeof RuntimeExports & EmbindModule;
@@ -28,4 +34,4 @@ export type LibmpvLoaderOptions = {
     canvas: HTMLCanvasElement,
     mainScriptUrlOrBlob: string,
 }
-export default function LibmpvLoader (options?: unknown): Promise<LibmpvModule>;
+export default function LibmpvLoader (options?: LoaderOptions): Promise<LibmpvModule>;

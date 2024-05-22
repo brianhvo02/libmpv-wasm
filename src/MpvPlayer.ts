@@ -1,8 +1,8 @@
-import libmpvLoader from 'libmpv-wasm/libmpv';
-import { LibmpvModule } from './types/libmpv';
+import libmpvLoader from './libmpv.js';
 import _ from 'lodash';
 import { isAudioTrack, isVideoTrack } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
+import { LibmpvModule } from './types/libmpv.js';
 
 const LIMIT = 4 * 1024 * 1024 * 1024;
 

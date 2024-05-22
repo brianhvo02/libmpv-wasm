@@ -4,8 +4,9 @@ set -e
 ./scripts/clean
 ./scripts/configure
 ./scripts/build_wasm "$@"
-install build/libmpv.js build/libmpv.wasm demo/public/static/js
-install build/libmpv.data demo/public
+install build_wasm/libmpv.js build_wasm/libmpv.wasm demo/public/static/js
+install build_wasm/libmpv.data demo/public
+install build_wasm/libmpv.js src
 
 mkdir -p demo-vanilla/dist
-install build/libmpv.js build/libmpv.wasm build/libmpv.data demo-vanilla/dist
+install build_wasm/libmpv.js build_wasm/libmpv.wasm build_wasm/libmpv.data demo-vanilla/dist

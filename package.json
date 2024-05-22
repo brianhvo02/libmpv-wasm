@@ -5,13 +5,12 @@
     "main": "index.js",
     "scripts": {
         "build": "./scripts/build",
-        "build:local": "./scripts/local_build",
         "build:full": "./scripts/build && npm --prefix demo run build",
-        "build:vercel": "BUILD_PATH=../public npm run build:full",
+        "build:vercel": "DOCKER=1 BUILD_PATH=../public npm run build:full",
         "dev": "nodemon -e ts -w src -x tsc",
         "dev:demo": "BROWSER=none npm --prefix demo start",
         "dev:demo-vanilla": "npm --prefix demo-vanilla run dev",
-        "linkbuild": "scripts/link_build"
+        "link": "scripts/link"
     },
     "repository": {
         "type": "git",

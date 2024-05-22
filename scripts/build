@@ -8,13 +8,23 @@ if ! [ -f "node_modules/typescript/bin/tsc" ]; then
 fi
 
 COUNT=$(find shaders -type f | wc -l)
-if [ "$COUNT" -eq 1 ]; then
-    docker run --rm -v .:/app -w /app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
+
+if [ -n $DOCKER_BUILD ]; then
+    if [ "$COUNT" -eq 1 ]; then
+        docker run --rm -v .:/src/app -w /src/app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/dl_a4k_shaders
+    fi
+    docker run --rm -v .:/src/app -w /src/app -u "$(id -u):$(id -g)" brianhvo02/em_mpv:latest scripts/rebuild
+else
+    if [ "$COUNT" -eq 1 ]; then
+        scripts/dl_a4k_shaders
+    fi
+    scripts/rebuild
 fi
 
-mkdir -p build
-docker run --rm -v .:/app -w /app brianhvo02/em_mpv:latest scripts/rebuild
-./scripts/link_build
-
-cp package.json src/types/libmpv.d.ts build
 tsc
+cat src/types/libmpv.d.ts >> build/libmpv.d.ts
+cat src/types/index.d.ts >> build/index.d.ts
+
+if [ -d "demo/node_modules/libmpv-wasm" ]; then
+    scripts/link
+fi

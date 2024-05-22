@@ -20,13 +20,14 @@ Our build script also uses [Emscripten](https://github.com/emscripten-core/emscr
 
 To build locally (requires mpv-build, CMake, and Emscripten):
 ```sh
-MPV_BUILD_DIR=[path to mpv-build] npm run build:local
-```
-
-To build using Docker:
-```sh
 npm install
 npm run build
+```
+
+To build using Docker, just set the `DOCKER_BUILD` variable:
+```sh
+npm install
+DOCKER_BUILD=1 npm run build
 ```
 
 ## Usage

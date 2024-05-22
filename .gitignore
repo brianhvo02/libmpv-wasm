@@ -1,7 +1,9 @@
 /build
 node_modules
 /build_libs
+/build_wasm
 .vscode/settings.json
 shaders/*
 !shaders/.keep
 .vercel/output/static
+src/libmpv.js

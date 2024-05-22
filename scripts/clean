@@ -1,5 +1,5 @@
 #!/bin/sh
 
-if [ -f build/Makefile ]; then
-    rm -r build/*
+if [ -d build_wasm ]; then
+    rm -r build_wasm
 fi

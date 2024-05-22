@@ -1,15 +1,20 @@
 #!/bin/sh
 set -e
-LIB_DIR="${MPV_BUILD_DIR:="/src"}/build_libs"
+
+if [ -z DOCKER_BUILD ]; then
+    PC_PATH="$(pwd)/build_libs/lib/pkgconfig"
+else
+    PC_PATH="/src/build_libs/lib/pkgconfig"
+fi
 
 case "$PKG_CONFIG_PATH" in
   '')
-    export PKG_CONFIG_PATH="$LIB_DIR/lib/pkgconfig"
+    export PKG_CONFIG_PATH=$PC_PATH
     ;;
   *)
-    export PKG_CONFIG_PATH="$LIB_DIR/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export PKG_CONFIG_PATH="$PC_PATH:$PKG_CONFIG_PATH"
     ;;
 esac
 
 export PKG_CONFIG="/usr/bin/pkg-config --static"
-emcmake cmake -B build -S . "$@"
+emcmake cmake -B build_wasm -S . "$@"

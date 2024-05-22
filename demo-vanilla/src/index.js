@@ -1,4 +1,4 @@
-import MpvPlayer from 'libmpv-wasm';
+import MpvPlayer from 'libmpv-wasm/build';
 import './style.css';
 
 const container = document.createElement('div');

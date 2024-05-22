@@ -1,5 +1,5 @@
 import { createContext, useEffect, useMemo, useRef, useState } from 'react';
-import MpvPlayer from 'libmpv-wasm';
+import MpvPlayer from 'libmpv-wasm/build';
 
 export const useMpvPlayer = () => {
     const [mpvPlayer, setMpvPlayer] = useState<MpvPlayer>();

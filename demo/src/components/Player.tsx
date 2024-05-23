@@ -46,7 +46,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
     useEffect(() => {
         togglePlay.current = player?.title.length 
             ? player.mpvPlayer?.module.togglePlay : undefined;
-    }, [player]);
+    }, [player?.title, player?.mpvPlayer?.module]);
 
     useEffect(() => {
         const play = togglePlay.current;
@@ -92,7 +92,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         return () => {
             document.removeEventListener('keydown', keyboardListener);
         }
-    }, [player]);
+    }, [player?.mpvPlayer?.module, player?.title]);
     
     return (
         <div className='player' ref={player?.playerRef} tabIndex={0}

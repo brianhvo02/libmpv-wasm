@@ -26,6 +26,10 @@ using namespace emscripten;
 using namespace std;
 
 static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
+int width = 1920;
+int height = 1080;
+int64_t video_width = 1920;
+int64_t video_height = 1080;
 SDL_Window *window;
 mpv_handle *mpv;
 mpv_render_context *mpv_gl;
@@ -204,35 +208,68 @@ void* load_fs(void *args) {
     return NULL;
 }
 
+void match_window_screen_size() {
+    emscripten_get_screen_size(&width, &height);
+        
+    double aspect_ratio = (double)video_height / video_width;
+    if (aspect_ratio != (double)height / width)
+        height = aspect_ratio * width;
+
+    SDL_SetWindowSize(window, width, height);
+
+    printf("video: %lldx%lld - screen: %dx%d\n", video_width, video_height, width, height);
+}
+
 void create_mpv_map_obj(mpv_node_list *map) {
     mpv_node node;
+    char* key;
+    int is_video = 0;
+    int is_first = 0;
+    int w = 16;
+    int h = 9;
     EM_ASM(obj = {};);
-    for (int j = 0; j < map->num; j++) {
-        node = map->values[j];
+    for (int i = 0; i < map->num; i++) {
+        key = map->keys[i];
+        node = map->values[i];
+        if (strcmp(key, "id") == 0 && node.u.int64 == 1) 
+            is_first = 1;
+        if (strcmp(key, "type") == 0 && node.format == MPV_FORMAT_STRING && strcmp(node.u.string, "video") == 0) 
+            is_video = 1;
+        if (strcmp(key, "demux-w") == 0) 
+            w = node.u.int64;
+        if (strcmp(key, "demux-h") == 0) 
+            h = node.u.int64;
         switch (node.format) {
             case MPV_FORMAT_INT64:
                 EM_ASM({
                     obj[UTF8ToString($0)] = $1.toString();
-                }, map->keys[j], node.u.int64);
+                }, key, node.u.int64);
                 break;
             case MPV_FORMAT_STRING:
                 EM_ASM({
                     obj[UTF8ToString($0)] = UTF8ToString($1);
-                }, map->keys[j], node.u.string);
+                }, key, node.u.string);
                 break;
             case MPV_FORMAT_FLAG:
                 EM_ASM({
                     obj[UTF8ToString($0)] = $1;
-                }, map->keys[j], node.u.flag);
+                }, key, node.u.flag);
                 break;
             case MPV_FORMAT_DOUBLE:
                 EM_ASM({
                     obj[UTF8ToString($0)] = $1;
-                }, map->keys[j], node.u.double_);
+                }, key, node.u.double_);
                 break;
             default:
-                printf("%s, format: %d\n", map->keys[j], node.format);
+                printf("%s, format: %d\n", key, node.format);
         }
+    }
+
+    if (is_video && is_first) {
+        video_width = w;
+        video_height = h;
+
+        match_window_screen_size();
     }
 }
 
@@ -244,13 +281,11 @@ void main_loop() {
     switch (event.type) {
         case SDL_EVENT_QUIT:
             quit();
+            break;
         case SDL_EVENT_WINDOW_EXPOSED:
             redraw = 1;
             break;
         default:
-            if (event.type != wakeup_on_mpv_render_update && event.type != wakeup_on_mpv_events) {
-                printf("SDL_EVENT: %lu\n", event.type);
-            }
             if (event.type == wakeup_on_mpv_render_update) {
                 uint64_t flags = mpv_render_context_update(mpv_gl);
                 if (flags & MPV_RENDER_UPDATE_FRAME)
@@ -386,9 +421,7 @@ void main_loop() {
             }
     }
     if (redraw) {
-        int w, h;
-        SDL_GetWindowSize(window, &w, &h);
-        mpv_opengl_fbo fbo = { 0, w, h };
+        mpv_opengl_fbo fbo = { 0, width, height };
         int flip_y = 1;
         mpv_render_param params[] = {
             {MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
@@ -420,8 +453,6 @@ void init_mpv() {
         die("SDL init failed");
     }
     
-    int width;
-    int height;
     emscripten_get_screen_size(&width, &height);
     window = SDL_CreateWindow("mpv Media Player", width, height, SDL_WINDOW_OPENGL);
 
@@ -498,4 +529,5 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("addShaders", &add_shaders);
     emscripten::function("clearShaders", &clear_shaders);
     emscripten::function("getShaderCount", &get_shader_count);
+    emscripten::function("matchWindowScreenSize", &match_window_screen_size);
 }

@@ -8,7 +8,32 @@ const App = () => {
     const player = useMpvPlayer();
     const [openHeader, setOpenHeader] = useState(true);
     const [hideHeader, setHideHeader] = useState(false);
+    const screenWidth = useRef(window.screen.width);
+    const screenHeight = useRef(window.screen.height);
     const headerTimeout = useRef<number>();
+
+    useEffect(() => {
+        const module = player.mpvPlayer?.module;
+        if (!module) return;
+
+        const onResize = () => {
+            const { width, height } = window.screen;
+            if (screenWidth.current === width && screenHeight.current === height)
+                return;
+
+            screenWidth.current = width;
+            screenWidth.current = height;
+            module.matchWindowScreenSize();
+        }
+
+        // @ts-ignore
+        window.screen.addEventListener('change', onResize);
+
+        return () => {
+            // @ts-ignore
+            window.screen.removeEventListener('resize', onResize);
+        }
+    }, [player.mpvPlayer?.module]);
 
     useEffect(() => {
         if (!openHeader) return;

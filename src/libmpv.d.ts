@@ -24,6 +24,7 @@ interface EmbindModule {
     addShaders(): void;
     clearShaders(): void;
     getShaderCount(): number;
+    matchWindowScreenSize(): void;
 }
 
 interface LoaderOptions {

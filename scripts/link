@@ -3,7 +3,13 @@
 set -e
 
 npm ln
-cd demo
-npm ln libmpv-wasm
-cd ../demo-vanilla
-npm ln libmpv-wasm
+
+if ! [ -d "demo/node_modules/libmpv-wasm" ]; then
+    cd demo
+    npm ln libmpv-wasm
+fi
+
+if ! [ -d "demo-vanilla/node_modules/libmpv-wasm" ]; then
+    cd ../demo-vanilla
+    npm ln libmpv-wasm
+fi

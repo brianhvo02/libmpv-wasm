@@ -25,9 +25,6 @@
 using namespace emscripten;
 using namespace std;
 
-const int WIDTH = 3840;
-const int HEIGHT = 2160;
-
 static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
 SDL_Window *window;
 mpv_handle *mpv;
@@ -379,7 +376,7 @@ void main_loop() {
         mpv_render_param params[] = {
             {MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
             {MPV_RENDER_PARAM_FLIP_Y, &flip_y},
-            {(mpv_render_param_type)0}
+            {(mpv_render_param_type) 0}
         };
         mpv_render_context_render(mpv_gl, params);
         SDL_GL_SwapWindow(window);
@@ -406,7 +403,10 @@ void init_mpv() {
         die("SDL init failed");
     }
     
-    window = SDL_CreateWindow("mpv Media Player", WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
+    int width;
+    int height;
+    emscripten_get_screen_size(&width, &height);
+    window = SDL_CreateWindow("mpv Media Player", width, height, SDL_WINDOW_OPENGL);
 
     if (!window)
         die("failed to create SDL window");
@@ -433,8 +433,7 @@ void init_mpv() {
 
     wakeup_on_mpv_render_update = SDL_RegisterEvents(1);
     wakeup_on_mpv_events = SDL_RegisterEvents(1);
-    if (wakeup_on_mpv_render_update == (Uint32)-1 ||
-        wakeup_on_mpv_events == (Uint32)-1)
+    if (wakeup_on_mpv_render_update == (Uint32) - 1 || wakeup_on_mpv_events == (Uint32) - 1)
         die("could not register events");
 
     mpv_set_wakeup_callback(mpv, on_mpv_events, NULL);

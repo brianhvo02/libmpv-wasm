@@ -2,7 +2,7 @@ import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from
 import { Player } from '../MpvPlayerHooks';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBackwardStep, faBookmark, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBookmark, faExpand, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
 
@@ -35,7 +35,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     const audioMenuRef = useRef<SVGSVGElement>(null);
     const subtitleMenuRef = useRef<SVGSVGElement>(null);
     const chapterMenuRef = useRef<SVGSVGElement>(null);
-    const mouseTimeout = useRef<NodeJS.Timeout>();
+    const mouseTimeout = useRef<number>();
 
     const [volumeMenu, setVolumeMenu] = useState(false);
     const [videoMenu, setVideoMenu] = useState(false);
@@ -44,10 +44,10 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     const [chapterMenu, setChapterMenu] = useState(false);
     const [mouseIsMoving, setMouseIsMoving] = useState(false);
 
-    // const toggleFullscreen = useCallback(() => document.fullscreenElement
-    //     ? document.exitFullscreen()
-    //     : document.body.requestFullscreen(), 
-    // []);
+    const toggleFullscreen = useCallback(() => document.fullscreenElement
+        ? document.exitFullscreen()
+        : document.body.requestFullscreen(), 
+    []);
     
     const onMouseMove = useCallback(() => {
         if (mouseTimeout.current)
@@ -55,7 +55,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
 
         setMouseIsMoving(true);
 
-        mouseTimeout.current = setTimeout(() => {
+        mouseTimeout.current = window.setTimeout(() => {
             setMouseIsMoving(false);
         }, 2000);
     }, []);
@@ -311,11 +311,11 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         }
                     </Menu>
                     </> }
-                    {/* <FontAwesomeIcon
+                    <FontAwesomeIcon
                         icon={faExpand}
                         onClick={() => toggleFullscreen()}
                         style={pointerStyle}
-                    /> */}
+                    />
                 </div>
             </div>
         </div>

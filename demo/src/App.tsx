@@ -8,7 +8,7 @@ const App = () => {
     const player = useMpvPlayer();
     const [openHeader, setOpenHeader] = useState(true);
     const [hideHeader, setHideHeader] = useState(false);
-    const headerTimeout = useRef<NodeJS.Timeout>();
+    const headerTimeout = useRef<number>();
 
     useEffect(() => {
         if (!openHeader) return;
@@ -17,7 +17,7 @@ const App = () => {
 
     useEffect(() => {
         if (hideHeader) {
-            headerTimeout.current = setTimeout(() => {
+            headerTimeout.current = window.setTimeout(() => {
                 setOpenHeader(false);
             }, 2000);
         } else {

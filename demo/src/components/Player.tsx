@@ -1,6 +1,6 @@
 import './Player.scss';
 
-import { Dispatch, SetStateAction, useContext, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { PlayerContext } from '../MpvPlayerHooks';
 import PlayerControls from './PlayerControls';
 
@@ -10,7 +10,34 @@ interface PlayerProps {
 
 const Player = ({ setHideHeader }: PlayerProps) => {
     const player = useContext(PlayerContext);
-    const [playerFocus, setPlayerFocus] = useState(false);
+
+    const togglePlayTimeout = useRef<number>();
+    const [willTogglePlay, setWillTogglePlay] = useState<boolean>();
+    const togglePlay = useRef<() => void>();
+
+    useEffect(() => {
+        togglePlay.current = player?.title.length ? player.mpvPlayer?.module.togglePlay : undefined;
+        console.log(player?.mpvPlayer?.module)
+    }, [player]);
+
+    useEffect(() => {
+        const play = togglePlay.current;
+        if (!play) return;
+
+        if (willTogglePlay) {
+            togglePlayTimeout.current = window.setTimeout(() => {
+                setWillTogglePlay(false);
+                play();
+            }, 350);
+        } else {
+            clearTimeout(togglePlayTimeout.current);
+        }
+    }, [willTogglePlay]);
+
+    const toggleFullscreen = useCallback(() => document.fullscreenElement
+        ? document.exitFullscreen()
+        : document.body.requestFullscreen(), 
+    []);
 
     useEffect(() => {
         const module = player?.mpvPlayer?.module;
@@ -42,12 +69,11 @@ const Player = ({ setHideHeader }: PlayerProps) => {
     return (
         <div className='player' ref={player?.playerRef} tabIndex={0}
             onMouseEnter={() => player?.title.length && setHideHeader(true)}
-            onFocus={() => setPlayerFocus(true)} onBlur={() => setPlayerFocus(false)}
-            // onDoubleClick={toggleFullscreen}
+            onDoubleClick={toggleFullscreen}
         >
             <canvas id='canvas' ref={player?.canvasRef} />
             <div className="canvas-blocker" 
-                onClick={() => player?.title.length && playerFocus && player.mpvPlayer?.module.togglePlay()} />
+                onClick={e => setWillTogglePlay(e.detail === 1)} />
             { !!player?.title.length &&
             <PlayerControls player={player} /> }
         </div>

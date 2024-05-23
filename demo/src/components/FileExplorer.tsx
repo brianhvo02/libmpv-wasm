@@ -140,7 +140,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                     </IconButton>
                     <h2>{path}</h2>
                 </div>
-                <List sx={{ flex: 1 }}>
+                <List sx={{ flex: 1, overflowY: 'auto' }}>
                     { Object.entries(tree).sort(([name1], [name2]) => name1.localeCompare(name2))
                         .map(([name, handle]) => {
                             return (

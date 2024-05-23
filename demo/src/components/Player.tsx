@@ -1,12 +1,16 @@
 import './Player.scss';
 
-import { Dispatch, SetStateAction, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { CSSProperties, Dispatch, SetStateAction, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { PlayerContext } from '../MpvPlayerHooks';
 import PlayerControls from './PlayerControls';
+import { useMediaQuery } from '@mui/material';
+import json2mq from 'json2mq';
 
 interface PlayerProps {
     setHideHeader: Dispatch<SetStateAction<boolean>>;
 }
+
+const gcd = (a: number, b: number): number => (b === 0) ? a : gcd(b, a % b);
 
 const Player = ({ setHideHeader }: PlayerProps) => {
     const player = useContext(PlayerContext);
@@ -14,6 +18,30 @@ const Player = ({ setHideHeader }: PlayerProps) => {
     const togglePlayTimeout = useRef<number>();
     const [willTogglePlay, setWillTogglePlay] = useState<boolean>();
     const togglePlay = useRef<() => void>();
+    
+    const aspectRatio = useMemo(() => {
+        if (!player) return '';
+        const videoStream = player.videoTracks[player.videoStream - 1];
+        if (!videoStream) return '';
+        const { demuxW, demuxH } = videoStream;
+        const w = Number(demuxW),
+              h = Number(demuxH);
+        const d = gcd(w, h);
+        const ratio = `${w / d}/${h / d}`;
+        return ratio;
+    }, [player]);
+    
+    const minAspectRatio = useMediaQuery(json2mq({ minAspectRatio: aspectRatio }));
+    const maxAspectRatio = useMediaQuery(json2mq({ maxAspectRatio: aspectRatio }));
+
+    const sizeStyle = useMemo<CSSProperties>(() => minAspectRatio ? {
+        width: 'auto'
+    } : maxAspectRatio ? {
+        height: 'auto'
+    } : {
+        width: '100%',
+        height: '100%'
+    }, [maxAspectRatio, minAspectRatio]);
 
     useEffect(() => {
         togglePlay.current = player?.title.length 
@@ -71,7 +99,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
             onMouseEnter={() => player?.title.length && setHideHeader(true)}
             onDoubleClick={toggleFullscreen}
         >
-            <canvas id='canvas' ref={player?.canvasRef} />
+            <canvas id='canvas' ref={player?.canvasRef} style={sizeStyle}/>
             <div className="canvas-blocker" 
                 onClick={e => setWillTogglePlay(e.detail === 1)} />
             { !!player?.title.length &&

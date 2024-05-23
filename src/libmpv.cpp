@@ -248,6 +248,9 @@ void main_loop() {
             redraw = 1;
             break;
         default:
+            if (event.type != wakeup_on_mpv_render_update && event.type != wakeup_on_mpv_events) {
+                printf("SDL_EVENT: %lu\n", event.type);
+            }
             if (event.type == wakeup_on_mpv_render_update) {
                 uint64_t flags = mpv_render_context_update(mpv_gl);
                 if (flags & MPV_RENDER_UPDATE_FRAME)

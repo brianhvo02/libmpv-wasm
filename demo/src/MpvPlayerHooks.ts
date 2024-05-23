@@ -15,13 +15,13 @@ export const useMpvPlayer = () => {
     const [videoTracks, setVideoTracks] = useState<VideoTrack[]>([]);
 
     const [audioStream, setAudioStream] = useState(1);
-    const [audioTracks, setAudioTracks] = useState<AudioTrack[]>();
+    const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
 
     const [subtitleStream, setSubtitleStream] = useState(1);
-    const [subtitleTracks, setSubtitleTracks] = useState<Track[]>();
+    const [subtitleTracks, setSubtitleTracks] = useState<Track[]>([]);
 
     const [currentChapter, setCurrentChapter] = useState(0);
-    const [chapters, setChapters] = useState<Chapter[]>();
+    const [chapters, setChapters] = useState<Chapter[]>([]);
     
     const [uploading, setUploading] = useState('');
     const [fileEnd, setFileEnd] = useState(false);

@@ -1,5 +1,5 @@
 import './Header.scss';
-import { useContext, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useContext, useRef, useState } from 'react';
 import { Button, CircularProgress, Modal, Paper, SxProps, Theme } from '@mui/material';
 import { PlayerContext } from '../MpvPlayerHooks';
 import FileExplorer from './FileExplorer';
@@ -38,7 +38,12 @@ const paperStyle: SxProps<Theme> = {
     outline: 'none'
 }
 
-const Header = ({ openHeader }: { openHeader: boolean }) => {
+interface HeaderProps {
+    openHeader: boolean;
+    setHideHeader: Dispatch<SetStateAction<boolean>>;
+}
+
+const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
     const player = useContext(PlayerContext);
     // const [libraryMenu, setLibraryMenu] = useState(false);
     // const [openUrlMenu, setOpenUrlMenu] = useState(false);
@@ -89,6 +94,7 @@ const Header = ({ openHeader }: { openHeader: boolean }) => {
                     if (!path.length) return;
                     player.mpvPlayer?.loadFile(path);
                     player.setTitle(path);
+                    setHideHeader(true);
                     if (!player.isPlaying)
                         player.mpvPlayer?.module.togglePlay();
                     setOpenFileExplorer(false);

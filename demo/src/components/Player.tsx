@@ -16,8 +16,8 @@ const Player = ({ setHideHeader }: PlayerProps) => {
     const togglePlay = useRef<() => void>();
 
     useEffect(() => {
-        togglePlay.current = player?.title.length ? player.mpvPlayer?.module.togglePlay : undefined;
-        console.log(player?.mpvPlayer?.module)
+        togglePlay.current = player?.title.length 
+            ? player.mpvPlayer?.module.togglePlay : undefined;
     }, [player]);
 
     useEffect(() => {

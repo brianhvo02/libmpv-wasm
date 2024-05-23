@@ -108,6 +108,10 @@ void get_tracks() {
     mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
 }
 
+void get_metadata() {
+    mpv_get_property_async(mpv, 0, "metadata", MPV_FORMAT_NODE);
+}
+
 void get_chapters() {
     mpv_get_property_async(mpv, 0, "chapter-list", MPV_FORMAT_NODE);
 }
@@ -200,6 +204,38 @@ void* load_fs(void *args) {
     return NULL;
 }
 
+void create_mpv_map_obj(mpv_node_list *map) {
+    mpv_node node;
+    EM_ASM(obj = {};);
+    for (int j = 0; j < map->num; j++) {
+        node = map->values[j];
+        switch (node.format) {
+            case MPV_FORMAT_INT64:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1.toString();
+                }, map->keys[j], node.u.int64);
+                break;
+            case MPV_FORMAT_STRING:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = UTF8ToString($1);
+                }, map->keys[j], node.u.string);
+                break;
+            case MPV_FORMAT_FLAG:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1;
+                }, map->keys[j], node.u.flag);
+                break;
+            case MPV_FORMAT_DOUBLE:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1;
+                }, map->keys[j], node.u.double_);
+                break;
+            default:
+                printf("%s, format: %d\n", map->keys[j], node.format);
+        }
+    }
+}
+
 void main_loop() {
     SDL_Event event;
     if (SDL_WaitEvent(&event) != 1)
@@ -236,6 +272,12 @@ void main_loop() {
                         case MPV_EVENT_FILE_LOADED:
                             get_tracks();
                             get_chapters();
+                            break;
+                        case MPV_EVENT_START_FILE:
+                            EM_ASM(postMessage(JSON.stringify({ type: 'file-start' })););
+                            break;
+                        case MPV_EVENT_END_FILE:
+                            EM_ASM(postMessage(JSON.stringify({ type: 'file-end' })););
                             break;
                         case MPV_EVENT_GET_PROPERTY_REPLY:
                         case MPV_EVENT_PROPERTY_CHANGE: {
@@ -299,7 +341,6 @@ void main_loop() {
                                     mpv_node *data = (mpv_node *)evt->data;
                                     mpv_node_list *list;
                                     mpv_node_list *map;
-                                    mpv_node node;
     
                                     if (strcmp(evt->name, "track-list") != 0 && strcmp(evt->name, "chapter-list") != 0)
                                         break;
@@ -308,35 +349,8 @@ void main_loop() {
                                     EM_ASM(arr = [];);
                                     
                                     for (int i = 0; i < list->num; i++) {
-                                        EM_ASM(obj = {};);
                                         map = (mpv_node_list *)list->values[i].u.list;
-                                        for (int j = 0; j < map->num; j++) {
-                                            node = map->values[j];
-                                            switch (node.format) {
-                                                case MPV_FORMAT_INT64:
-                                                    EM_ASM({
-                                                        obj[UTF8ToString($0)] = $1.toString();
-                                                    }, map->keys[j], node.u.int64);
-                                                    break;
-                                                case MPV_FORMAT_STRING:
-                                                    EM_ASM({
-                                                        obj[UTF8ToString($0)] = UTF8ToString($1);
-                                                    }, map->keys[j], node.u.string);
-                                                    break;
-                                                case MPV_FORMAT_FLAG:
-                                                    EM_ASM({
-                                                        obj[UTF8ToString($0)] = $1;
-                                                    }, map->keys[j], node.u.flag);
-                                                    break;
-                                                case MPV_FORMAT_DOUBLE:
-                                                    EM_ASM({
-                                                        obj[UTF8ToString($0)] = $1;
-                                                    }, map->keys[j], node.u.double_);
-                                                    break;
-                                                default:
-                                                    printf("%s, format: %d\n", map->keys[j], node.format);
-                                            }
-                                        }
+                                        create_mpv_map_obj(map);
                                         EM_ASM(arr.push(obj););
                                     }
                                     if (strcmp(evt->name, "track-list") == 0) {
@@ -446,6 +460,7 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
 }
 
 int main(int argc, char const *argv[]) {

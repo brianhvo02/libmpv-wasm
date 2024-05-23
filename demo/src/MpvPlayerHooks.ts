@@ -24,6 +24,7 @@ export const useMpvPlayer = () => {
     const [chapters, setChapters] = useState<Chapter[]>();
     
     const [uploading, setUploading] = useState('');
+    const [fileEnd, setFileEnd] = useState(false);
 
     const [shaderCount, setShaderCount] = useState<number>(0);
 
@@ -38,7 +39,7 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        uploading, shaderCount,
+        uploading, fileEnd, shaderCount,
         setVolume, setTitle, setElapsed
     }), [
         mpvPlayer, canvasRef, playerRef,
@@ -47,7 +48,7 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        uploading, shaderCount,
+        uploading, fileEnd, shaderCount,
         setVolume, setTitle, setElapsed
     ]);
 
@@ -68,6 +69,11 @@ export const useMpvPlayer = () => {
             currentChapter: setCurrentChapter,
             chapters: setChapters,
             uploading: setUploading,
+            title: val => {
+                if (!val) return;
+                setTitle(val);
+            },
+            fileEnd: setFileEnd,
             shaderCount: setShaderCount,
         }).then(setMpvPlayer);
 

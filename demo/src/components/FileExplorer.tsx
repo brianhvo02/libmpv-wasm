@@ -18,8 +18,8 @@ const paperStyle: SxProps<Theme> = {
     gap: '1rem',
     padding: '1.5rem',
 
-    width: '35vh',
-    height: '60vh',
+    width: '40vh',
+    height: '65vh',
 
     color: '#dadada',
     backgroundColor: '#141519', 

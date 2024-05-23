@@ -25,10 +25,16 @@ const App = () => {
         }
     }, [hideHeader]);
 
+    useEffect(() => {
+        if (!player.fileEnd) return;
+        player.setTitle('');
+        setOpenHeader(true);
+    }, [player]);
+
     return (
         <div className="app">
             <PlayerContext.Provider value={player}>
-                <Header openHeader={openHeader} />
+                <Header openHeader={openHeader} setHideHeader={setHideHeader} />
                 <div className='header-detector' onMouseEnter={() => {
                     setOpenHeader(true);
                     setHideHeader(false);

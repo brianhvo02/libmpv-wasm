@@ -22,6 +22,8 @@ interface ProxyOptions {
     chapters: ProxyHandle<'chapters', MpvPlayer['chapters']>;
     isSeeking: ProxyHandle<'isSeeking', MpvPlayer['isSeeking']>;
     uploading: ProxyHandle<'uploading', MpvPlayer['uploading']>;
+    title: ProxyHandle<'title', MpvPlayer['title']>;
+    fileEnd: ProxyHandle<'fileEnd', MpvPlayer['fileEnd']>;
     files: ProxyHandle<'files', MpvPlayer['files']>;
     shaderCount: ProxyHandle<'shaderCount', MpvPlayer['shaderCount']>;
 }
@@ -30,7 +32,7 @@ const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => 
     'idle', 'isPlaying', 'duration', 'elapsed',
     'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
     'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters',
-    'isSeeking', 'uploading', 'files', 'shaderCount'
+    'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount'
 ].includes(typeof prop === 'symbol' ? prop.toString() : prop);
 
 export default class MpvPlayer {
@@ -38,6 +40,8 @@ export default class MpvPlayer {
 
     fsWorker: Worker | null = null;
     mpvWorker: Worker | null = null;
+
+    fileEnd = false;
     
     idle = false;
     isPlaying = false;
@@ -56,6 +60,7 @@ export default class MpvPlayer {
 
     isSeeking = false;
     uploading = '';
+    title: 0 | string = 0;
     files: string[] = [];
 
     shaderCount = -1;
@@ -70,8 +75,9 @@ export default class MpvPlayer {
                 if (!isMpvPlayerProperty(prop))
                     return false;
                 
-                if (typeof newValue !== typeof target[prop])
-                    return false;
+                if (( prop === 'title' && !['string', 'number'].includes(typeof newValue) )
+                    || ( prop !== 'title' && typeof newValue !== typeof target[prop] )
+                ) return false;
 
                 if (prop === 'idle' && target.idle != newValue) {
                     if (!target.fsWorker)
@@ -83,8 +89,7 @@ export default class MpvPlayer {
                 // @ts-ignore
                 target[prop] = newValue;
 
-                // @ts-ignore
-                if (options[prop]) {
+                if (options[prop as keyof typeof options]) {
                     // @ts-ignore
                     options[prop].call(target, newValue, prop);
                 }
@@ -117,6 +122,12 @@ export default class MpvPlayer {
                         this.proxy.idle = true;
                         this.proxy.shaderCount = payload.shaderCount;
                         break;
+                    case 'file-start':
+                        this.proxy.fileEnd = false;
+                        break;
+                    case 'file-end':
+                        this.proxy.fileEnd = true;
+                        break;
                     case 'property-change':
                         switch (payload.name) {
                             case 'pause':
@@ -143,6 +154,9 @@ export default class MpvPlayer {
                                 break;
                             case 'shaderCount':
                                 this.proxy.shaderCount = payload.value;
+                                break;
+                            case 'metadata/by-key/title':
+                                this.proxy.title = payload.value;
                                 break;
                             default:
                                 console.log(`event: property-change -> { name: ${
@@ -260,5 +274,5 @@ export default class MpvPlayer {
         this.fsWorker.postMessage({ path, files: pickedFiles });
     }
 
-    loadFile = (path: string) => this.module.loadFile('/opfs/' + path);
+    loadFile = (path: string) => this.module.loadFile('/opfs' + path);
 }

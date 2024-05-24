@@ -22,6 +22,8 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
+#include "thumbnail.h"
+
 using namespace emscripten;
 using namespace std;
 
@@ -35,242 +37,92 @@ mpv_handle *mpv;
 mpv_render_context *mpv_gl;
 pthread_t fs_thread;
 
-intptr_t get_fs_thread() {
-    return (intptr_t)fs_thread;
+void init_mpv();
+void main_loop();
+void* load_fs(void *args);
+void create_mpv_map_obj(mpv_node_list *map);
+int get_shader_count();
+void get_tracks();
+void get_chapters();
+static void *get_proc_address_mpv(void *fn_ctx, const char *name);
+static void on_mpv_events(void *ctx);
+static void on_mpv_render_update(void *ctx);
+intptr_t get_fs_thread();
+void die(const char *msg);
+void quit();
+
+int main(int argc, char const *argv[]) {
+    pthread_create(&fs_thread, NULL, load_fs, NULL);
+
+    backend_t opfs = wasmfs_create_opfs_backend();
+    int err = wasmfs_create_directory("/opfs", 0777, opfs);
+    assert(err == 0);
+
+    init_mpv();
+    emscripten_set_main_loop(main_loop, 0, 1);
+
+    return 0;
 }
 
-static void die(const char *msg) {
-    fprintf(stderr, "%s\n", msg);
-    exit(1);
-}
+void init_mpv() {
+    mpv = mpv_create();
+    if (!mpv)
+        die("context init failed");
 
-static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
-    return (void *)SDL_GL_GetProcAddress(name);
-}
+    mpv_set_property_string(mpv, "vo", "libmpv");
 
-static void on_mpv_events(void *ctx) {
-    SDL_Event event = {.type = wakeup_on_mpv_events};
-    SDL_PushEvent(&event);
-}
+    if (mpv_initialize(mpv) < 0)
+        die("mpv init failed");
 
-static void on_mpv_render_update(void *ctx) {
-    SDL_Event event = {.type = wakeup_on_mpv_render_update};
-    SDL_PushEvent(&event);
-}
+    // mpv_request_log_messages(mpv, "debug");
 
-void quit() {
-    mpv_render_context_free(mpv_gl);
-    mpv_destroy(mpv);
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
 
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
-    SDL_RenderPresent(renderer);
-    SDL_Quit();
-
-    emscripten_cancel_main_loop();
-
-    printf("properly terminated\n");
-}
-
-void load_file(string path) {
-    printf("loading %s\n", path.c_str());
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+        die("SDL init failed");
     
-    if (!filesystem::exists(path)) {
-        printf("file does not exist\n");
-        return;
-    }
-
-    const char * cmd[] = {"loadfile", path.c_str(), NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void load_url(string url) {
-    printf("loading %s\n", url.c_str());
-    
-    if (url.find("http://") + url.find("https://") < string::npos) {
-        printf("unsupported protocol\n");
-        return;
-    }
-
-    const char * cmd[] = {"loadfile", url.c_str(), NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void toggle_play() {
-    const char * cmd[] = {"cycle", "pause", NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void set_playback_time_pos(double time) {
-    mpv_set_property_async(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE, &time);
-}
-
-void set_ao_volume(double volume) {
-    mpv_set_property_async(mpv, 0, "ao-volume", MPV_FORMAT_DOUBLE, &volume);
-}
-
-void get_tracks() {
-    mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
-}
-
-void get_metadata() {
-    mpv_get_property_async(mpv, 0, "metadata", MPV_FORMAT_NODE);
-}
-
-void get_chapters() {
-    mpv_get_property_async(mpv, 0, "chapter-list", MPV_FORMAT_NODE);
-}
-
-void set_video_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx);
-}
-
-void set_audio_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx);
-}
-
-void set_subtitle_track(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx);
-}
-
-void set_chapter(int64_t idx) {
-    mpv_set_property_async(mpv, 0, "chapter", MPV_FORMAT_INT64, &idx);
-}
-
-void skip_forward() {
-    const char * cmd[] = {"seek", "10", NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void skip_backward() {
-    const char * cmd[] = {"seek", "-10", NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void add_shaders() {
-    const char *shader_list = "/shaders/Anime4K_Clamp_Highlights.glsl:/shaders/Anime4K_Restore_CNN_VL.glsl:/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:/shaders/Anime4K_AutoDownscalePre_x2.glsl:/shaders/Anime4K_AutoDownscalePre_x4.glsl:/shaders/Anime4K_Upscale_CNN_x2_M.glsl";
-    const char * cmd[] = {"change-list", "glsl-shaders", "set", shader_list, NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-void clear_shaders() {
-    const char * cmd[] = {"change-list", "glsl-shaders", "clr", "", NULL};
-    mpv_command_async(mpv, 0, cmd);
-}
-
-int get_shader_count() {
-    auto dirIter = std::filesystem::directory_iterator("/shaders");
-
-    int fileCount = std::count_if(
-        begin(dirIter),
-        end(dirIter),
-        [](auto& entry) { return entry.is_regular_file(); }
-    );
-
-    return fileCount - 1;
-}
-
-void* load_fs(void *args) {
-    EM_ASM(
-        onmessage = async e => {
-            let dirHandle;
-            const segments = e.data.path.split('/');
-            for (const segment of segments) {
-                if (!segment.length) {
-                    dirHandle = await navigator.storage.getDirectory();
-                    continue;
-                }
-                
-                dirHandle = await dirHandle.getDirectoryHandle(segment, { create: true });
-            }
-
-            for (const file of e.data.files) {
-                postMessage(JSON.stringify({ type: 'upload', filename: file.name }));
-                
-                const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
-
-                if (fileHandle.createWritable) {
-                    const writable = await fileHandle.createWritable();
-                    console.log('Writing', file.name);
-                    await writable.write(file);
-                    await writable.close();
-                } else {
-                    const accessHandle = await fileHandle.createSyncAccessHandle();
-                    const buf = await file.arrayBuffer();
-                    accessHandle.write(buf);
-                    accessHandle.close();
-                }
-            }
-
-            postMessage(JSON.stringify({ type: 'upload-complete' }));
-        }
-    );
-
-    return NULL;
-}
-
-void match_window_screen_size() {
     emscripten_get_screen_size(&width, &height);
-        
-    double aspect_ratio = (double)video_height / video_width;
-    if (aspect_ratio != (double)height / width)
-        height = aspect_ratio * width;
+    window = SDL_CreateWindow("mpv Media Player", width, height, SDL_WINDOW_OPENGL);
 
-    SDL_SetWindowSize(window, width, height);
+    if (!window)
+        die("failed to create SDL window");
 
-    printf("video: %lldx%lld - screen: %dx%d\n", video_width, video_height, width, height);
-}
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-void create_mpv_map_obj(mpv_node_list *map) {
-    mpv_node node;
-    char* key;
-    int is_video = 0;
-    int is_first = 0;
-    int w = 16;
-    int h = 9;
-    EM_ASM(obj = {};);
-    for (int i = 0; i < map->num; i++) {
-        key = map->keys[i];
-        node = map->values[i];
-        if (strcmp(key, "id") == 0 && node.u.int64 == 1) 
-            is_first = 1;
-        if (strcmp(key, "type") == 0 && node.format == MPV_FORMAT_STRING && strcmp(node.u.string, "video") == 0) 
-            is_video = 1;
-        if (strcmp(key, "demux-w") == 0) 
-            w = node.u.int64;
-        if (strcmp(key, "demux-h") == 0) 
-            h = node.u.int64;
-        switch (node.format) {
-            case MPV_FORMAT_INT64:
-                EM_ASM({
-                    obj[UTF8ToString($0)] = $1.toString();
-                }, key, node.u.int64);
-                break;
-            case MPV_FORMAT_STRING:
-                EM_ASM({
-                    obj[UTF8ToString($0)] = UTF8ToString($1);
-                }, key, node.u.string);
-                break;
-            case MPV_FORMAT_FLAG:
-                EM_ASM({
-                    obj[UTF8ToString($0)] = $1;
-                }, key, node.u.flag);
-                break;
-            case MPV_FORMAT_DOUBLE:
-                EM_ASM({
-                    obj[UTF8ToString($0)] = $1;
-                }, key, node.u.double_);
-                break;
-            default:
-                printf("%s, format: %d\n", key, node.format);
-        }
-    }
+    SDL_GLContext glcontext = SDL_GL_CreateContext(window);
+    if (!glcontext)
+        die("failed to create SDL GL context");
 
-    if (is_video && is_first) {
-        video_width = w;
-        video_height = h;
+    mpv_opengl_init_params init_params = { get_proc_address_mpv };
+    int advanced_control = 1;
 
-        match_window_screen_size();
-    }
+    mpv_render_param params[] = {
+        {MPV_RENDER_PARAM_API_TYPE, (void *)MPV_RENDER_API_TYPE_OPENGL},
+        {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &init_params},
+        {MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced_control},
+        {(mpv_render_param_type) 0}
+    };
+
+    if (mpv_render_context_create(&mpv_gl, mpv, params) < 0)
+        die("failed to initialize mpv GL context");
+
+    wakeup_on_mpv_render_update = SDL_RegisterEvents(1);
+    wakeup_on_mpv_events = SDL_RegisterEvents(1);
+    if (wakeup_on_mpv_render_update == (Uint32) - 1 || wakeup_on_mpv_events == (Uint32) - 1)
+        die("could not register events");
+
+    mpv_set_wakeup_callback(mpv, on_mpv_events, NULL);
+    mpv_render_context_set_update_callback(mpv_gl, on_mpv_render_update, NULL);
+
+    mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(mpv, 0, "duration", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(mpv, 0, "vid", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
 }
 
 void main_loop() {
@@ -433,81 +285,259 @@ void main_loop() {
     }
 }
 
-void init_mpv() {
-    mpv = mpv_create();
-    if (!mpv) {
-        die("context init failed");
-    }
+void* load_fs(void *args) {
+    EM_ASM(
+        onmessage = async e => {
+            let dirHandle;
+            const segments = e.data.path.split('/');
+            for (const segment of segments) {
+                if (!segment.length) {
+                    dirHandle = await navigator.storage.getDirectory();
+                    continue;
+                }
+                
+                dirHandle = await dirHandle.getDirectoryHandle(segment, { create: true });
+            }
 
-    mpv_set_property_string(mpv, "vo", "libmpv");
+            for (const file of e.data.files) {
+                postMessage(JSON.stringify({ type: 'upload', filename: file.name }));
+                
+                const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
 
-    if (mpv_initialize(mpv) < 0) {
-        die("mpv init failed");
-    }
+                if (fileHandle.createWritable) {
+                    const writable = await fileHandle.createWritable();
+                    console.log('Writing', file.name);
+                    await writable.write(file);
+                    await writable.close();
+                } else {
+                    const accessHandle = await fileHandle.createSyncAccessHandle();
+                    const buf = await file.arrayBuffer();
+                    accessHandle.write(buf);
+                    accessHandle.close();
+                }
 
-    // mpv_request_log_messages(mpv, "debug");
+                Module.createThumbnail('/opfs' + e.data.path + '/' + file.name);
+            }
 
-    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
+            postMessage(JSON.stringify({ type: 'upload-complete' }));
+        }
+    );
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        die("SDL init failed");
-    }
-    
-    emscripten_get_screen_size(&width, &height);
-    window = SDL_CreateWindow("mpv Media Player", width, height, SDL_WINDOW_OPENGL);
-
-    if (!window)
-        die("failed to create SDL window");
-
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-
-    SDL_GLContext glcontext = SDL_GL_CreateContext(window);
-    if (!glcontext)
-        die("failed to create SDL GL context");
-
-    mpv_opengl_init_params init_params = { get_proc_address_mpv };
-    int advanced_control = 1;
-
-    mpv_render_param params[] = {
-        {MPV_RENDER_PARAM_API_TYPE, (void *)MPV_RENDER_API_TYPE_OPENGL},
-        {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &init_params},
-        {MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced_control},
-        {(mpv_render_param_type) 0}
-    };
-
-    if (mpv_render_context_create(&mpv_gl, mpv, params) < 0)
-        die("failed to initialize mpv GL context");
-
-    wakeup_on_mpv_render_update = SDL_RegisterEvents(1);
-    wakeup_on_mpv_events = SDL_RegisterEvents(1);
-    if (wakeup_on_mpv_render_update == (Uint32) - 1 || wakeup_on_mpv_events == (Uint32) - 1)
-        die("could not register events");
-
-    mpv_set_wakeup_callback(mpv, on_mpv_events, NULL);
-    mpv_render_context_set_update_callback(mpv_gl, on_mpv_render_update, NULL);
-
-    mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG);
-    mpv_observe_property(mpv, 0, "duration", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(mpv, 0, "vid", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
+    return NULL;
 }
 
-int main(int argc, char const *argv[]) {
-    pthread_create(&fs_thread, NULL, load_fs, NULL);
+void load_file(string path) {
+    printf("loading %s\n", path.c_str());
+    
+    if (!filesystem::exists(path)) {
+        printf("file does not exist\n");
+        return;
+    }
 
-    backend_t opfs = wasmfs_create_opfs_backend();
-    int err = wasmfs_create_directory("/opfs", 0777, opfs);
-    assert(err == 0);
+    const char * cmd[] = {"loadfile", path.c_str(), NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
 
-    init_mpv();
-    emscripten_set_main_loop(main_loop, 0, 1);
+void load_url(string url) {
+    printf("loading %s\n", url.c_str());
+    
+    if (url.find("http://") + url.find("https://") < string::npos) {
+        printf("unsupported protocol\n");
+        return;
+    }
 
-    return 0;
+    const char * cmd[] = {"loadfile", url.c_str(), NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void toggle_play() {
+    const char * cmd[] = {"cycle", "pause", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void set_playback_time_pos(double time) {
+    mpv_set_property_async(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE, &time);
+}
+
+void set_ao_volume(double volume) {
+    mpv_set_property_async(mpv, 0, "ao-volume", MPV_FORMAT_DOUBLE, &volume);
+}
+
+void get_tracks() {
+    mpv_get_property_async(mpv, 0, "track-list", MPV_FORMAT_NODE);
+}
+
+void get_metadata() {
+    mpv_get_property_async(mpv, 0, "metadata", MPV_FORMAT_NODE);
+}
+
+void get_chapters() {
+    mpv_get_property_async(mpv, 0, "chapter-list", MPV_FORMAT_NODE);
+}
+
+void set_video_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "vid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_audio_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "aid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_subtitle_track(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "sid", MPV_FORMAT_INT64, &idx);
+}
+
+void set_chapter(int64_t idx) {
+    mpv_set_property_async(mpv, 0, "chapter", MPV_FORMAT_INT64, &idx);
+}
+
+void skip_forward() {
+    const char * cmd[] = {"seek", "10", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void skip_backward() {
+    const char * cmd[] = {"seek", "-10", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void add_shaders() {
+    const char *shader_list = "/shaders/Anime4K_Clamp_Highlights.glsl:/shaders/Anime4K_Restore_CNN_VL.glsl:/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:/shaders/Anime4K_AutoDownscalePre_x2.glsl:/shaders/Anime4K_AutoDownscalePre_x4.glsl:/shaders/Anime4K_Upscale_CNN_x2_M.glsl";
+    const char * cmd[] = {"change-list", "glsl-shaders", "set", shader_list, NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void clear_shaders() {
+    const char * cmd[] = {"change-list", "glsl-shaders", "clr", "", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+int get_shader_count() {
+    auto dirIter = std::filesystem::directory_iterator("/shaders");
+
+    int fileCount = std::count_if(
+        begin(dirIter),
+        end(dirIter),
+        [](auto& entry) { return entry.is_regular_file(); }
+    );
+
+    return fileCount - 1;
+}
+
+intptr_t get_fs_thread() {
+    return (intptr_t)fs_thread;
+}
+
+static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
+    return (void *)SDL_GL_GetProcAddress(name);
+}
+
+static void on_mpv_events(void *ctx) {
+    SDL_Event event = {.type = wakeup_on_mpv_events};
+    SDL_PushEvent(&event);
+}
+
+static void on_mpv_render_update(void *ctx) {
+    SDL_Event event = {.type = wakeup_on_mpv_render_update};
+    SDL_PushEvent(&event);
+}
+
+void quit() {
+    mpv_render_context_free(mpv_gl);
+    mpv_destroy(mpv);
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
+    SDL_RenderPresent(renderer);
+    SDL_Quit();
+
+    emscripten_cancel_main_loop();
+
+    printf("properly terminated\n");
+}
+
+void match_window_screen_size() {
+    emscripten_get_screen_size(&width, &height);
+        
+    double aspect_ratio = (double)video_height / video_width;
+    int new_height = height;
+    if (aspect_ratio != (double)height / width)
+        new_height = aspect_ratio * width;
+
+    SDL_SetWindowSize(window, width, new_height);
+
+    printf("video: %lldx%lld -> screen: %dx%d = canvas: %dx%d\n", video_width, video_height, width, height, width, new_height);
+}
+
+void create_mpv_map_obj(mpv_node_list *map) {
+    mpv_node node;
+    char* key;
+    int is_video = 0;
+    int is_first = 0;
+    int w = 16;
+    int h = 9;
+    EM_ASM(obj = {};);
+    for (int i = 0; i < map->num; i++) {
+        key = map->keys[i];
+        node = map->values[i];
+        if (strcmp(key, "id") == 0 && node.u.int64 == 1) 
+            is_first = 1;
+        if (strcmp(key, "type") == 0 && node.format == MPV_FORMAT_STRING && strcmp(node.u.string, "video") == 0) 
+            is_video = 1;
+        if (strcmp(key, "demux-w") == 0) 
+            w = node.u.int64;
+        if (strcmp(key, "demux-h") == 0) 
+            h = node.u.int64;
+        switch (node.format) {
+            case MPV_FORMAT_INT64:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1.toString();
+                }, key, node.u.int64);
+                break;
+            case MPV_FORMAT_STRING:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = UTF8ToString($1);
+                }, key, node.u.string);
+                break;
+            case MPV_FORMAT_FLAG:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1;
+                }, key, node.u.flag);
+                break;
+            case MPV_FORMAT_DOUBLE:
+                EM_ASM({
+                    obj[UTF8ToString($0)] = $1;
+                }, key, node.u.double_);
+                break;
+            default:
+                printf("%s, format: %d\n", key, node.format);
+        }
+    }
+
+    if (is_video && is_first) {
+        video_width = w;
+        video_height = h;
+
+        match_window_screen_size();
+    }
+}
+
+void *thumbnail_thread_gen(void *args) {
+    string *path_ptr = (string *)(args);
+    generate_thumbnail(path_ptr, 15);
+
+    return NULL;
+}
+
+void create_thumbnail_thread(string path) {
+    pthread_t thumbnail_thread;
+    string *path_ptr = (string *)malloc(sizeof(path));
+    *path_ptr = path;
+    pthread_create(&thumbnail_thread, NULL, thumbnail_thread_gen, path_ptr);
+}
+
+void die(const char *msg) {
+    fprintf(stderr, "%s\n", msg);
+    exit(1);
 }
 
 EMSCRIPTEN_BINDINGS(libmpv) {
@@ -530,4 +560,5 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("clearShaders", &clear_shaders);
     emscripten::function("getShaderCount", &get_shader_count);
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
+    emscripten::function("createThumbnail", &create_thumbnail_thread);
 }

@@ -275,4 +275,5 @@ export default class MpvPlayer {
     }
 
     loadFile = (path: string) => this.module.loadFile('/opfs' + path);
+    createThumbnail = (path: string) => this.module.createThumbnail('/opfs' + path);
 }

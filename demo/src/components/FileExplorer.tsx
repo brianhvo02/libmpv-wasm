@@ -1,7 +1,7 @@
 import { Dispatch, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
 import './FileExplorer.scss';
 import { Avatar, Button, CircularProgress, IconButton, List, ListItem, ListItemAvatar, ListItemButton, ListItemText, Modal, Paper, SxProps, TextField, Theme } from '@mui/material';
-import { Folder, Delete, FilePresent, ArrowCircleLeft } from '@mui/icons-material';
+import { Folder, Delete, FilePresent } from '@mui/icons-material';
 import { PlayerContext } from '../MpvPlayerHooks';
 
 const paperStyle: SxProps<Theme> = {
@@ -18,8 +18,8 @@ const paperStyle: SxProps<Theme> = {
     gap: '1rem',
     padding: '1.5rem',
 
-    width: '40vh',
-    height: '65vh',
+    width: '40%',
+    height: '65%',
 
     color: '#dadada',
     backgroundColor: '#141519', 
@@ -63,6 +63,8 @@ interface FileExplorerProps {
     setOpenFileExplorer: Dispatch<SetStateAction<boolean>>;
 }
 
+type FileTree = Record<string, FileSystemDirectoryHandle | FileSystemFileHandle>;
+
 const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: FileExplorerProps) => {
     const player = useContext(PlayerContext);
 
@@ -70,7 +72,8 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
     const history = useRef<FileSystemDirectoryHandle[]>([]);
     const [parent, setParent] = useState<FileSystemDirectoryHandle>();
     const [path, setPath] = useState('');
-    const [tree, setTree] = useState<Record<string, FileSystemDirectoryHandle | FileSystemFileHandle>>({});
+    const [tree, setTree] = useState<FileTree>({});
+    const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     const [showNewFolder, setShowNewFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [newFolderLoading, setNewFolderLoading] = useState(false);
@@ -100,8 +103,25 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
             .then(segments => segments && setPath('/' + segments.join('/')));
         
         Array.fromAsync(parent.entries())
-            .then(entries => Object.fromEntries(entries))
-            .then(setTree);
+            .then(async entries => {
+                const newTree: FileTree = {};
+                const newThumbnails: Record<string, string> = {};
+
+                await Promise.all(
+                    entries.map(async ([name, handle]) => {
+                        if (handle.kind === 'directory' || name.slice(-4) !== '.png') {
+                            newTree[name] = handle;
+                            return;
+                        }
+                        
+                        const file = await handle.getFile();
+                        newThumbnails[name.slice(0, -4)] = URL.createObjectURL(file);
+                    })
+                );
+                
+                setTree(newTree);
+                setThumbnails(newThumbnails);
+            });
     }, [parent, player?.uploading, newFolderLoading]);
 
     const handleNewFolderClick = async () => {
@@ -134,48 +154,62 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                         </> }
                     </Paper>
                 </Modal>
-                <div className='header'>
-                    <IconButton edge='end' aria-label='back' onClick={handleBackClick} sx={{ opacity: Number(!isRootDir) }}>
-                        <ArrowCircleLeft />
-                    </IconButton>
-                    <h2>{path}</h2>
-                </div>
-                <List sx={{ flex: 1, overflowY: 'auto' }}>
-                    { Object.entries(tree).sort(([name1], [name2]) => name1.localeCompare(name2))
-                        .map(([name, handle]) => {
-                            return (
-                                <ListItem
-                                    key={name}
-                                    secondaryAction={
-                                    <IconButton edge='end' aria-label='delete' onClick={async e => {
-                                        e.stopPropagation();
-                                        await parent?.removeEntry(handle.name, { recursive: true });
-                                        const newTree = { ...tree };
-                                        delete newTree[handle.name];
-                                        setTree(newTree);
-                                    }} >
-                                        <Delete />
-                                    </IconButton>
-                                    }
-                                >
-                                    <ListItemButton onClick={() => handle.kind === 'directory'
-                                        ? setParent(handle)
-                                        : onFileClick(resolvePath(rootDir.current, handle))
-                                    }>
-                                        <ListItemAvatar>
-                                            <Avatar>
-                                                { handle.kind === 'directory' ?
-                                                    <Folder /> :
-                                                    <FilePresent />
-                                                }
-                                            </Avatar>
-                                        </ListItemAvatar>
-                                        <ListItemText primary={name} />
-                                    </ListItemButton>
-                                </ListItem>
-                            );
-                        })
-                    }
+                <h2 className='header'>{path}</h2>
+                <List className='files'>
+                    { !isRootDir &&
+                    <ListItem>
+                        <ListItemButton onClick={handleBackClick}>
+                            <ListItemAvatar>
+                                <Avatar>
+                                    <Folder />
+                                </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText className='back-folder' primary='...' />
+                        </ListItemButton>
+                    </ListItem> }
+                    { Object.entries(tree).sort(([name1, handle1], [name2, handle2]) => {
+                        if (handle1.kind === handle2.kind && (
+                            (thumbnails[name1.slice(-4)] && thumbnails[name2.slice(-4)]) ||
+                            (!thumbnails[name1.slice(-4)] && !thumbnails[name2.slice(-4)])
+                        )) return name1.localeCompare(name2);
+                        return handle1.kind === 'directory' || thumbnails[name1.slice(-4)] ? -1 : 1;
+                    }).map(([name, handle]) => {
+                        const basename = name.slice(0, name.lastIndexOf('.'));
+
+                        return (
+                            <ListItem
+                                key={name}
+                                secondaryAction={
+                                <IconButton edge='end' aria-label='delete' onClick={async e => {
+                                    e.stopPropagation();
+                                    await parent?.removeEntry(handle.name, { recursive: true });
+                                    const newTree = { ...tree };
+                                    delete newTree[handle.name];
+                                    setTree(newTree);
+                                }} >
+                                    <Delete />
+                                </IconButton>
+                                }
+                            >
+                                <ListItemButton onClick={() => handle.kind === 'directory'
+                                    ? setParent(handle)
+                                    : onFileClick(resolvePath(rootDir.current, handle))
+                                }>
+                                    { (handle.kind === 'file' && thumbnails[basename]) ?
+                                    <img className='thumbnail' 
+                                        src={thumbnails[basename]} alt={name + ' thumbnail'} /> :
+                                    <ListItemAvatar>
+                                        <Avatar>
+                                            { handle.kind === 'directory' ?
+                                                <Folder /> :
+                                                <FilePresent /> }
+                                        </Avatar>
+                                    </ListItemAvatar> }
+                                    <ListItemText primary={name} />
+                                </ListItemButton>
+                            </ListItem>
+                        );
+                    }) }
                 </List>
                 <div className='footer'>
                     <Button onClick={() => setShowNewFolder(true)} variant='contained'>New folder</Button>

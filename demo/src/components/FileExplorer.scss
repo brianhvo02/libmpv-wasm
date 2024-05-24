@@ -1,16 +1,9 @@
 .file-explorer {
-    .header {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-
-        gap: 1.5rem;
-
-        h2 {
-            font-size: 1.5rem;
-            line-height: 2rem;
-            font-weight: bold;
-        }
+    h2.header {
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: bold;
+        margin-left: 1rem;
     }
 
     .footer {
@@ -20,5 +13,23 @@
         justify-content: space-around;
 
         padding-top: 1rem;
+    }
+
+    .files {
+        flex: 1;
+        overflow-y: auto;
+
+        .back-folder span {
+            font-size: 1.5rem;
+        }
+
+        .thumbnail {
+            border-radius: 0.75rem;
+
+            max-width: 250px;
+            min-width: 120px;
+
+            margin-right: 1rem;
+        }
     }
 }

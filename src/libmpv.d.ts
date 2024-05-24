@@ -25,6 +25,7 @@ interface EmbindModule {
     clearShaders(): void;
     getShaderCount(): number;
     matchWindowScreenSize(): void;
+    createThumbnail(path: string): void;
 }
 
 interface LoaderOptions {

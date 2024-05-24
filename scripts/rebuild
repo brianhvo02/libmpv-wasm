@@ -4,6 +4,11 @@ set -e
 ./scripts/clean
 ./scripts/configure
 ./scripts/build_wasm "$@"
+
+if ! [ -z $ID ]; then
+    chown -R $ID build_wasm
+fi
+
 install build_wasm/libmpv.js build_wasm/libmpv.wasm demo/public/static/js
 install build_wasm/libmpv.data demo/public
 install build_wasm/libmpv.js src

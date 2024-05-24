@@ -8,7 +8,7 @@
         "build:wasm": "scripts/build_segment_wasm",
         "build:wrapper": "scripts/build_segment_wrapper",
         "build:full": "npm run build && npm --prefix demo run build",
-        "build:vercel": "DOCKER=1 BUILD_PATH=../public npm run build:full",
+        "build:vercel": "DOCKER_BUILD=1 BUILD_PATH=../public npm run build:full",
         "dev": "npm run link && concurrently -c red,yellow,green -n wasm,wrapper,demo npm:dev:wasm npm:dev:wrapper npm:dev:demo",
         "dev:wasm": "nodemon -e cpp -w src -x 'npm run build:wasm'",
         "dev:wrapper": "nodemon -e ts,js -w src -x 'npm run build:wrapper'",

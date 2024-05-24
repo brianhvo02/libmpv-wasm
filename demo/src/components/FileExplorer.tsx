@@ -168,11 +168,14 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                         </ListItemButton>
                     </ListItem> }
                     { Object.entries(tree).sort(([name1, handle1], [name2, handle2]) => {
+                        const basename1 = name1.slice(0, name1.lastIndexOf('.'));
+                        const basename2 = name2.slice(0, name2.lastIndexOf('.'));
+
                         if (handle1.kind === handle2.kind && (
-                            (thumbnails[name1.slice(-4)] && thumbnails[name2.slice(-4)]) ||
-                            (!thumbnails[name1.slice(-4)] && !thumbnails[name2.slice(-4)])
+                            (thumbnails[basename1] && thumbnails[basename2]) ||
+                            (!thumbnails[basename1] && !thumbnails[basename2])
                         )) return name1.localeCompare(name2);
-                        return handle1.kind === 'directory' || thumbnails[name1.slice(-4)] ? -1 : 1;
+                        return handle1.kind === 'directory' || thumbnails[basename1] ? -1 : 1;
                     }).map(([name, handle]) => {
                         const basename = name.slice(0, name.lastIndexOf('.'));
 

@@ -175,7 +175,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                             (thumbnails[basename1] && thumbnails[basename2]) ||
                             (!thumbnails[basename1] && !thumbnails[basename2])
                         )) return name1.localeCompare(name2);
-                        return handle1.kind === 'directory' || thumbnails[basename1] ? -1 : 1;
+                        return handle1.kind === 'directory' || !thumbnails[basename1] ? -1 : 1;
                     }).map(([name, handle]) => {
                         const basename = name.slice(0, name.lastIndexOf('.'));
 
@@ -186,6 +186,15 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                                 <IconButton edge='end' aria-label='delete' onClick={async e => {
                                     e.stopPropagation();
                                     await parent?.removeEntry(handle.name, { recursive: true });
+                                    try {
+                                        const thumbnail = handle.name.slice(
+                                            0, handle.name.lastIndexOf('.')
+                                        ) + '.png';
+                                        await parent?.getFileHandle(thumbnail);
+                                        await parent?.removeEntry(thumbnail);
+                                    } catch (e) {
+                                        console.log(handle.name, 'had no thumbnail');
+                                    }
                                     const newTree = { ...tree };
                                     delete newTree[handle.name];
                                     setTree(newTree);

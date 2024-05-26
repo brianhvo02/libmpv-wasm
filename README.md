@@ -62,5 +62,8 @@ To run the vanilla demo, build libmpv-wasm first as shown above, then run `npm r
 ## Roadmap
 
 - Integrate OpenSSL and allow loading URLs
-- Implement OPFS filesystem browser (possible separate project)
-- Find way to lift 4GB limit on file loading
+- ~~Implement OPFS filesystem browser (possible separate project)~~
+- ~~Find way to lift 4GB limit on file loading~~
+- Allow users to upload shaders
+- Allow users to upload keybindings
+- ALlow users to upload configs

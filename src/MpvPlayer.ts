@@ -263,13 +263,6 @@ export default class MpvPlayer {
         if (!pickedFiles?.length)
             return;
 
-        for (const file of pickedFiles) {
-            if (file.size < LIMIT)
-                continue;
-
-            throw new Error('File size exceeds 4GB file limit.');
-        }
-
         this.proxy.uploading = pickedFiles[0].name;
         this.fsWorker.postMessage({ path, files: pickedFiles });
     }

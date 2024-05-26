@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+git apply --unsafe-paths --directory /emsdk/upstream/emscripten fix.patch
+embuilder --force build libwasmfs-mt-debug
+
 case "$PKG_CONFIG_PATH" in
     '')
         export PKG_CONFIG_PATH="$(pwd)/../build_libs/lib/pkgconfig"

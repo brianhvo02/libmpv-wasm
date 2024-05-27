@@ -1,7 +1,10 @@
 #!/bin/sh
 set -e
 
-git apply --unsafe-paths --directory /emsdk/upstream/emscripten fix.patch
+git apply --unsafe-paths --directory /emsdk/upstream/emscripten patches/fix.patch
+cp /emsdk/upstream/emscripten/system/include/emscripten/wasmfs.h /emsdk/upstream/emscripten/cache/sysroot/include/emscripten
+cp patches/externalfs_backend.cpp patches/externalfs_backend.h /emsdk/upstream/emscripten/system/lib/wasmfs/backends
+cp patches/library_wasmfs_externalfs.js /emsdk/upstream/emscripten/src
 embuilder --force build libwasmfs-mt-debug
 
 case "$PKG_CONFIG_PATH" in

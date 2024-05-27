@@ -10,6 +10,7 @@ interface EmbindModule {
     mpvInit(): void;
     loadFile(filename: string): void;
     togglePlay(): void;
+    stop(): void;
     setPlaybackTime(seconds: number): void;
     setVolume(volume: number): void;
     getTracks(): void;
@@ -21,6 +22,7 @@ interface EmbindModule {
     skipForward(): void;
     skipBackward(): void;
     getFsThread(): bigint;
+    getMpvThread(): bigint;
     addShaders(): void;
     clearShaders(): void;
     getShaderCount(): number;

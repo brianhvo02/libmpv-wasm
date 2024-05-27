@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const App = () => {
     const player = useMpvPlayer();
+    const { mpvPlayer, setTitle, fileEnd } = player;
     const [openHeader, setOpenHeader] = useState(true);
     const [hideHeader, setHideHeader] = useState(false);
     const screenWidth = useRef(window.screen.width);
@@ -13,8 +14,7 @@ const App = () => {
     const headerTimeout = useRef<number>();
 
     useEffect(() => {
-        const module = player.mpvPlayer?.module;
-        if (!module) return;
+        if (!mpvPlayer?.module) return;
 
         const onResize = () => {
             const { width, height } = window.screen;
@@ -23,7 +23,7 @@ const App = () => {
 
             screenWidth.current = width;
             screenWidth.current = height;
-            module.matchWindowScreenSize();
+            mpvPlayer.module.matchWindowScreenSize();
         }
 
         // @ts-ignore
@@ -33,7 +33,7 @@ const App = () => {
             // @ts-ignore
             window.screen.removeEventListener('resize', onResize);
         }
-    }, [player.mpvPlayer?.module]);
+    }, [mpvPlayer]);
 
     useEffect(() => {
         if (!openHeader) return;
@@ -51,10 +51,10 @@ const App = () => {
     }, [hideHeader]);
 
     useEffect(() => {
-        if (!player.fileEnd) return;
-        player.setTitle('');
+        if (!fileEnd) return;
+        setTitle('');
         setOpenHeader(true);
-    }, [player]);
+    }, [fileEnd, setTitle]);
 
     return (
         <div className="app">

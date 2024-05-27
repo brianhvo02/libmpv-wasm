@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useContext, useEffect, useState } from 'react';
 import './FileExplorer.scss';
 import { Avatar, Button, CircularProgress, IconButton, List, ListItem, ListItemAvatar, ListItemButton, ListItemText, Modal, Paper, SxProps, TextField, Theme } from '@mui/material';
 import { Folder, Delete, FilePresent } from '@mui/icons-material';
@@ -49,16 +49,8 @@ const newFolderStyle: SxProps<Theme> = {
     outline: 'none'
 }
 
-const resolvePath = async (ancestor?: FileSystemDirectoryHandle, descendant?: FileSystemDirectoryHandle | FileSystemFileHandle) => {
-    if (!ancestor || !descendant) return '';
-    const segments = await ancestor.resolve(descendant);
-    if (!segments) return '';
-
-    return '/' + segments.join('/');
-}
-
 interface FileExplorerProps {
-    onFileClick: (path: Promise<string>) => void;
+    onFileClick: (path: string) => void;
     openFileExplorer: boolean;
     setOpenFileExplorer: Dispatch<SetStateAction<boolean>>;
 }
@@ -68,76 +60,84 @@ type FileTree = Record<string, FileSystemDirectoryHandle | FileSystemFileHandle>
 const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: FileExplorerProps) => {
     const player = useContext(PlayerContext);
 
-    const rootDir = useRef<FileSystemDirectoryHandle>();
-    const history = useRef<FileSystemDirectoryHandle[]>([]);
-    const [parent, setParent] = useState<FileSystemDirectoryHandle>();
+    const [history, setHistory] = useState<FileSystemDirectoryHandle[]>([]);
     const [path, setPath] = useState('');
+    const [opfs, setOpfs] = useState<FileSystemDirectoryHandle>();
+    const [extfs, setExtfs] = useState<FileSystemDirectoryHandle>();
     const [tree, setTree] = useState<FileTree>({});
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     const [showNewFolder, setShowNewFolder] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [newFolderLoading, setNewFolderLoading] = useState(false);
 
-    const [isRootDir, setIsRootDir] = useState(true);
-
     useEffect(() => {
         navigator.storage.getDirectory()
-            .then(root => {
-                if (rootDir.current) return;
-                rootDir.current = root;
-                history.current.push(root);
-                setParent(root);
-            });
+            .then(setOpfs);
     }, []);
 
     useEffect(() => {
-        if (!rootDir.current || !parent) return;
+        if (!opfs) return;
 
-        history.current[history.current.length - 1].isSameEntry(parent)
-            .then(isSame => !isSame && history.current.push(parent));
+        if (!history.length) {
+            const tree: FileTree = {};
+            if (opfs) tree['opfs'] = opfs;
+            if (extfs) tree['extfs'] = extfs;
+            setPath('/');
+            return setTree(tree);
+        }
 
-        rootDir.current.isSameEntry(parent)
-            .then(setIsRootDir);
-
-        rootDir.current.resolve(parent)
-            .then(segments => segments && setPath('/' + segments.join('/')));
+        const parent = history[history.length - 1];
+        new Promise<void>(async resolve => {
+            const segments = [];
+            for (const handle of history) {
+                if (await handle.isSameEntry(opfs)) 
+                    segments.push('opfs');
+                else if (extfs && await handle.isSameEntry(extfs)) 
+                    segments.push('extfs');
+                else segments.push(handle.name)
+            }
+            setPath('/' + segments.join('/'));
+            resolve();
+        })
         
-        Array.fromAsync(parent.entries())
-            .then(async entries => {
-                const newTree: FileTree = {};
-                const newThumbnails: Record<string, string> = {};
+        Promise.all([
+            Array.fromAsync(parent.keys()),
+            Array.fromAsync(parent.values()),
+        ]).then(async ([names, handles]) => {
+            const newTree: FileTree = {};
+            const newThumbnails: Record<string, string> = {};
 
-                await Promise.all(
-                    entries.map(async ([name, handle]) => {
-                        if (handle.kind === 'directory' || name.slice(-4) !== '.png') {
-                            newTree[name] = handle;
-                            return;
-                        }
-                        
-                        const file = await handle.getFile();
-                        newThumbnails[name.slice(0, -4)] = URL.createObjectURL(file);
-                    })
-                );
-                
-                setTree(newTree);
-                setThumbnails(newThumbnails);
-            });
-    }, [parent, player?.uploading, newFolderLoading]);
+            await Promise.all(
+                names.map(async (name, i) => {
+                    const handle = handles[i];
+                    if (handle.kind === 'directory' || name.slice(-4) !== '.png') {
+                        newTree[name] = handle;
+                        return;
+                    }
+                    
+                    const file = await handle.getFile();
+                    newThumbnails[name.slice(0, -4)] = URL.createObjectURL(file);
+                })
+            );
+            
+            setTree(newTree);
+            setThumbnails(newThumbnails);
+        });
+}, [opfs, history, player?.uploading, newFolderLoading, extfs]);
 
     const handleNewFolderClick = async () => {
-        if (!parent) return;
+        if (!history.length) return;
 
         setNewFolderLoading(true);
-        await parent.getDirectoryHandle(newFolderName, { create: true });
+        await history[history.length - 1].getDirectoryHandle(newFolderName, { create: true });
         setNewFolderLoading(false);
         setShowNewFolder(false);
     }
 
     const handleBackClick = async () => {
-        if (isRootDir) return;
+        if (!history.length) return;
 
-        history.current.pop();
-        setParent(history.current[history.current.length - 1]);
+        setHistory(prev => prev.slice(0, -1));
     }
 
     return (
@@ -156,7 +156,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                 </Modal>
                 <h2 className='header'>{path}</h2>
                 <List className='files'>
-                    { !isRootDir &&
+                    { !!history.length &&
                     <ListItem>
                         <ListItemButton onClick={handleBackClick}>
                             <ListItemAvatar>
@@ -182,16 +182,16 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                         return (
                             <ListItem
                                 key={name}
-                                secondaryAction={
+                                secondaryAction={ path.includes('opfs') &&
                                 <IconButton edge='end' aria-label='delete' onClick={async e => {
                                     e.stopPropagation();
-                                    await parent?.removeEntry(handle.name, { recursive: true });
+                                    await history[history.length - 1].removeEntry(handle.name, { recursive: true });
                                     try {
                                         const thumbnail = handle.name.slice(
                                             0, handle.name.lastIndexOf('.')
                                         ) + '.png';
-                                        await parent?.getFileHandle(thumbnail);
-                                        await parent?.removeEntry(thumbnail);
+                                        await history[history.length - 1].getFileHandle(thumbnail);
+                                        await history[history.length - 1].removeEntry(thumbnail);
                                     } catch (e) {
                                         console.log(handle.name, 'had no thumbnail');
                                     }
@@ -204,8 +204,8 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                                 }
                             >
                                 <ListItemButton onClick={() => handle.kind === 'directory'
-                                    ? setParent(handle)
-                                    : onFileClick(resolvePath(rootDir.current, handle))
+                                    ? setHistory(prev => [...prev, handle])
+                                    : onFileClick(`${path}/${handle.name}`)
                                 }>
                                     { (handle.kind === 'file' && thumbnails[basename]) ?
                                     <img className='thumbnail' 
@@ -230,6 +230,14 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                         { typeof showOpenFilePicker === 'undefined' &&
                         <input type='file' multiple onChange={e => player?.mpvPlayer?.uploadFiles('/', Array.from(e.target.files ?? []))} />}
                     </label>
+                    <Button onClick={async () => {
+                        const isInExtfs = extfs && await history[0].isSameEntry(extfs);
+                        const mountHandle = await player?.mpvPlayer?.mountFolder();
+                        if (!mountHandle) return;
+                        if (isInExtfs) setHistory([]);
+                        player?.mpvPlayer?.module.stop();
+                        setExtfs(mountHandle);
+                    }} variant='contained'>Mount Folder</Button>
                 </div>
             </Paper>
         </Modal>

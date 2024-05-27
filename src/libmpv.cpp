@@ -36,6 +36,7 @@ SDL_Window *window;
 mpv_handle *mpv;
 mpv_render_context *mpv_gl;
 pthread_t fs_thread;
+pthread_t mpv_thread;
 
 void init_mpv();
 void main_loop();
@@ -48,14 +49,20 @@ static void *get_proc_address_mpv(void *fn_ctx, const char *name);
 static void on_mpv_events(void *ctx);
 static void on_mpv_render_update(void *ctx);
 intptr_t get_fs_thread();
+intptr_t get_mpv_thread();
 void die(const char *msg);
 void quit();
 
 int main(int argc, char const *argv[]) {
+    mpv_thread = pthread_self();
     pthread_create(&fs_thread, NULL, load_fs, NULL);
 
     backend_t opfs = wasmfs_create_opfs_backend();
     int err = wasmfs_create_directory("/opfs", 0777, opfs);
+    assert(err == 0);
+
+    backend_t extfs = wasmfs_create_externalfs_backend();
+    err = wasmfs_create_directory("/extfs", 0777, extfs);
     assert(err == 0);
 
     init_mpv();
@@ -355,6 +362,11 @@ void toggle_play() {
     mpv_command_async(mpv, 0, cmd);
 }
 
+void stop() {
+    const char * cmd[] = {"stop", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
 void set_playback_time_pos(double time) {
     mpv_set_property_async(mpv, 0, "playback-time", MPV_FORMAT_DOUBLE, &time);
 }
@@ -426,6 +438,10 @@ int get_shader_count() {
 
 intptr_t get_fs_thread() {
     return (intptr_t)fs_thread;
+}
+
+intptr_t get_mpv_thread() {
+    return (intptr_t)mpv_thread;
 }
 
 static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
@@ -524,6 +540,7 @@ void create_mpv_map_obj(mpv_node_list *map) {
 void *thumbnail_thread_gen(void *args) {
     string *path_ptr = (string *)(args);
     generate_thumbnail(path_ptr, 15);
+    free(args);
 
     return NULL;
 }
@@ -545,6 +562,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("loadFile", &load_file);
     emscripten::function("loadUrl", &load_url);
     emscripten::function("togglePlay", &toggle_play);
+    emscripten::function("stop", &stop);
     emscripten::function("setPlaybackTime", &set_playback_time_pos);
     emscripten::function("setVolume", &set_ao_volume);
     emscripten::function("getTracks", &get_tracks);
@@ -556,6 +574,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("skipForward", &skip_forward);
     emscripten::function("skipBackward", &skip_backward);
     emscripten::function("getFsThread", &get_fs_thread);
+    emscripten::function("getMpvThread", &get_mpv_thread);
     emscripten::function("addShaders", &add_shaders);
     emscripten::function("clearShaders", &clear_shaders);
     emscripten::function("getShaderCount", &get_shader_count);

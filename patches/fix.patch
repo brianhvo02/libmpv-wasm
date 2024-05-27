@@ -1,0 +1,117 @@
+diff --git a/src/library_sigs.js b/src/library_sigs.js
+index 0eec5211f..55997c9c4 100644
+--- a/src/library_sigs.js
++++ b/src/library_sigs.js
+@@ -439,6 +439,16 @@ sigs = {
+   _wasmfs_opfs_set_size_access__sig: 'vpijp',
+   _wasmfs_opfs_set_size_file__sig: 'vpijp',
+   _wasmfs_opfs_write_access__sig: 'iipii',
++  _wasmfs_externalfs_close_blob__sig: 'vi',
++  _wasmfs_externalfs_free_directory__sig: 'vi',
++  _wasmfs_externalfs_free_file__sig: 'vi',
++  _wasmfs_externalfs_get_child__sig: 'vpippp',
++  _wasmfs_externalfs_get_entries__sig: 'vpipp',
++  _wasmfs_externalfs_get_size_blob__sig: 'ii',
++  _wasmfs_externalfs_get_size_file__sig: 'vpip',
++  _wasmfs_externalfs_init_root_directory__sig: 'vp',
++  _wasmfs_externalfs_open_blob__sig: 'vpip',
++  _wasmfs_externalfs_read_blob__sig: 'ipipiip',
+   _wasmfs_stdin_get_char__sig: 'i',
+   _wasmfs_thread_utils_heartbeat__sig: 'vp',
+   alBuffer3f__sig: 'viifff',
+diff --git a/src/library_wasmfs.js b/src/library_wasmfs.js
+index 6440ebe7e..8033c85cc 100644
+--- a/src/library_wasmfs.js
++++ b/src/library_wasmfs.js
+@@ -59,6 +59,9 @@ FS.init();
+ #if LibraryManager.has('library_opfs.js')
+     '$OPFS',
+ #endif
++#if LibraryManager.has('library_externalfs.js')
++    '$EXTERNALFS',
++#endif
+ #if LibraryManager.has('library_jsfilefs.js')
+     '$JSFILEFS',
+ #endif
+diff --git a/src/library_wasmfs_opfs.js b/src/library_wasmfs_opfs.js
+index 826f491ec..5e281599b 100644
+--- a/src/library_wasmfs_opfs.js
++++ b/src/library_wasmfs_opfs.js
+@@ -337,7 +337,7 @@ addToLibrary({
+   _wasmfs_opfs_read_blob__deps: ['$wasmfsOPFSBlobs', '$wasmfsOPFSProxyFinish'],
+   _wasmfs_opfs_read_blob: async function(ctx, blobID, bufPtr, len, pos, nreadPtr) {
+     let blob = wasmfsOPFSBlobs.get(blobID);
+-    let slice = blob.slice(pos, pos + len);
++    let slice = blob.slice(Number(pos), Number(pos) + len);
+     let nread = 0;
+ 
+     try {
+@@ -396,7 +396,7 @@ addToLibrary({
+   _wasmfs_opfs_get_size_blob__deps: ['$wasmfsOPFSBlobs'],
+   _wasmfs_opfs_get_size_blob: (blobID) => {
+     // This cannot fail.
+-    return wasmfsOPFSBlobs.get(blobID).size;
++    return BigInt(wasmfsOPFSBlobs.get(blobID).size);
+   },
+ 
+   _wasmfs_opfs_get_size_file__deps: ['$wasmfsOPFSFileHandles', '$wasmfsOPFSProxyFinish'],
+diff --git a/src/modules.mjs b/src/modules.mjs
+index e437ac0cb..004dbfcc5 100644
+--- a/src/modules.mjs
++++ b/src/modules.mjs
+@@ -101,6 +101,7 @@ export const LibraryManager = {
+           'library_wasmfs_fetch.js',
+           'library_wasmfs_node.js',
+           'library_wasmfs_opfs.js',
++          'library_wasmfs_externalfs.js',
+         ]);
+       } else {
+         // Core filesystem libraries (always linked against, unless -sFILESYSTEM=0 is specified)
+diff --git a/system/include/emscripten/wasmfs.h b/system/include/emscripten/wasmfs.h
+index 422c99e08..6d86648a0 100644
+--- a/system/include/emscripten/wasmfs.h
++++ b/system/include/emscripten/wasmfs.h
+@@ -71,6 +71,7 @@ backend_t wasmfs_create_node_backend(const char* root __attribute__((nonnull)));
+ // TODO: Add an async version of this function that will work on the main
+ // thread.
+ backend_t wasmfs_create_opfs_backend(void);
++backend_t wasmfs_create_externalfs_backend(void);
+ 
+ // Creates a generic JSIMPL backend in the new file system.
+ backend_t wasmfs_create_jsimpl_backend(void);
+diff --git a/system/lib/wasmfs/backends/opfs_backend.h b/system/lib/wasmfs/backends/opfs_backend.h
+index ffd3d25b5..46a4be772 100644
+--- a/system/lib/wasmfs/backends/opfs_backend.h
++++ b/system/lib/wasmfs/backends/opfs_backend.h
+@@ -73,7 +73,7 @@ int _wasmfs_opfs_read_blob(em_proxying_ctx* ctx,
+                            int blob_id,
+                            uint8_t* buf,
+                            uint32_t len,
+-                           uint32_t pos,
++                           off_t pos,
+                            int32_t* nread);
+ 
+ // Synchronous write. Return the number of bytes written.
+@@ -88,7 +88,7 @@ void _wasmfs_opfs_get_size_access(em_proxying_ctx* ctx,
+                                   off_t* size);
+ 
+ // TODO: return 64-byte off_t.
+-uint32_t _wasmfs_opfs_get_size_blob(int blob_id);
++off_t _wasmfs_opfs_get_size_blob(int blob_id);
+ 
+ // Get the size of a file handle via a File Blob.
+ void _wasmfs_opfs_get_size_file(em_proxying_ctx* ctx, int file_id, off_t* size);
+diff --git a/tools/system_libs.py b/tools/system_libs.py
+index 1892de757..fef0d6e6e 100644
+--- a/tools/system_libs.py
++++ b/tools/system_libs.py
+@@ -1984,7 +1984,8 @@ class libwasmfs(DebugLibrary, AsanInstrumentedLibrary, MTLibrary):
+                    'js_file_backend.cpp',
+                    'memory_backend.cpp',
+                    'node_backend.cpp',
+-                   'opfs_backend.cpp'])
++                   'opfs_backend.cpp',
++                   'externalfs_backend.cpp'])
+     return backends + files_in_path(
+         path='system/lib/wasmfs',
+         filenames=['file.cpp',

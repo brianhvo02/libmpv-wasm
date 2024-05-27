@@ -106,7 +106,7 @@ export default class MpvPlayer {
     ) {
         const module = await libmpvLoader({
             canvas,
-            mainScriptUrlOrBlob,
+            mainScriptUrlOrBlob
         });
 
         return new this(module, options);
@@ -215,6 +215,7 @@ export default class MpvPlayer {
     }
 
     setupFsWorker() {
+        console.log(this.proxy.module.PThread)
         const threadId = this.proxy.module.getFsThread();
         this.fsWorker = this.proxy.module.PThread.pthreads[threadId.toString()];
 
@@ -267,6 +268,15 @@ export default class MpvPlayer {
         this.fsWorker.postMessage({ path, files: pickedFiles });
     }
 
-    loadFile = (path: string) => this.module.loadFile('/opfs' + path);
-    createThumbnail = (path: string) => this.module.createThumbnail('/opfs' + path);
+    async mountFolder() {
+        const directoryHandle = await showDirectoryPicker()
+            .catch(e => console.error(e));
+        
+        if (!directoryHandle)
+            return;
+
+        this.proxy.module.PThread.runningWorkers[3].postMessage(directoryHandle);
+
+        return directoryHandle;
+    }
 }

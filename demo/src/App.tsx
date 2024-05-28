@@ -27,11 +27,11 @@ const App = () => {
         }
 
         // @ts-ignore
-        window.screen.addEventListener('change', onResize);
+        window.screen?.addEventListener('change', onResize);
 
         return () => {
             // @ts-ignore
-            window.screen.removeEventListener('resize', onResize);
+            window.screen?.removeEventListener('resize', onResize);
         }
     }, [mpvPlayer]);
 

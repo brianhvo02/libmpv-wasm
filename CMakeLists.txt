@@ -20,8 +20,8 @@ link_directories(
     ${SDL3_STATIC_LIBRARY_DIRS}
 )
 
-set(SOURCES src/thumbnail.cpp)
-set(HEADERS include/thumbnail.h)
+set(SOURCES src/thumbnail.cpp src/igs_reader.cpp src/base64.cpp)
+set(HEADERS include/thumbnail.h include/igs_reader.h include/base64.h)
 add_executable(libmpv src/libmpv.cpp ${SOURCES} ${HEADERS})
 
 set(CMAKE_EXECUTABLE_SUFFIX ".js")

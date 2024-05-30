@@ -23,6 +23,7 @@
 #include <AL/alc.h>
 
 #include "thumbnail.h"
+#include "igs_reader.h"
 
 using namespace emscripten;
 using namespace std;

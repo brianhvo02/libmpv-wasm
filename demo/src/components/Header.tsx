@@ -192,6 +192,13 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
                     ) }
                 </ul>
             </Popover> */}
+            { <div className='navbar' onClick={() => {
+                const info = player.mpvPlayer?.module.bdOpen('/extfs');
+                // @ts-ignore
+                window.info = info;
+            }}>
+                <span>Play Disc</span>
+            </div> }
             { player.shaderCount > 0 && <>
             <div className='navbar' onClick={() => player.mpvPlayer?.module.addShaders()}>
                 <span>Add Shaders</span>

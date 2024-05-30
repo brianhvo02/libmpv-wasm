@@ -1,3 +1,6 @@
+#ifndef IGS_READER_H
+#define IGS_READER_H
+
 #include <fstream>
 #include <vector>
 #include <set>
@@ -141,3 +144,5 @@ typedef struct igs_t {
 
 igs_t extract_menu(char const *filename);
 string picture_to_base64_uri(picture_t picture, vector<color_t> palette);
+
+#endif /* IGS_READER_H */

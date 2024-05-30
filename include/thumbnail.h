@@ -19,4 +19,4 @@ extern "C" {
 
 void generate_thumbnail(std::string *path, int64_t offset_in_seconds);
 
-#endif
+#endif /* THUMBNAIL_H */

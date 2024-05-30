@@ -20,14 +20,14 @@ link_directories(
     ${SDL3_STATIC_LIBRARY_DIRS}
 )
 
-set(SOURCES src/thumbnail.cpp src/igs_reader.cpp src/base64.cpp)
-set(HEADERS include/thumbnail.h include/igs_reader.h include/base64.h)
+set(SOURCES src/thumbnail.cpp src/libbluray.cpp src/igs_reader.cpp src/base64.cpp)
+set(HEADERS include/thumbnail.h include/libbluray.h include/igs_reader.h include/base64.h)
 add_executable(libmpv src/libmpv.cpp ${SOURCES} ${HEADERS})
 
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal --preload-file ../shaders@/shaders \
+set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal --preload-file ../shaders@/shaders --emit-tsd libmpv.d.ts \
 -sUSE_PTHREADS -sPROXY_TO_PTHREAD -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=384MB -sOFFSCREENCANVAS_SUPPORT \
 -sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader'")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")

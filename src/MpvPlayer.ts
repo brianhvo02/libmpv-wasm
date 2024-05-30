@@ -2,7 +2,7 @@ import libmpvLoader from './libmpv.js';
 import _ from 'lodash';
 import { isAudioTrack, isVideoTrack } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
-import { LibmpvModule } from './libmpv.js';
+import { MainModule } from './libmpv.js';
 
 const LIMIT = 4 * 1024 * 1024 * 1024;
 
@@ -36,7 +36,7 @@ const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => 
 ].includes(typeof prop === 'symbol' ? prop.toString() : prop);
 
 export default class MpvPlayer {
-    module: LibmpvModule;
+    module: MainModule;
 
     fsWorker: Worker | null = null;
     mpvWorker: Worker | null = null;
@@ -67,7 +67,7 @@ export default class MpvPlayer {
 
     proxy: MpvPlayer;
 
-    private constructor(module: LibmpvModule, options: Partial<ProxyOptions>) {
+    private constructor(module: MainModule, options: Partial<ProxyOptions>) {
         this.module = module;
 
         this.proxy = new Proxy(this, {
@@ -114,6 +114,9 @@ export default class MpvPlayer {
 
     setupMpvWorker() {
         this.mpvWorker = this.module.PThread.runningWorkers.concat(this.module.PThread.unusedWorkers)[0];
+        if (!this.mpvWorker)
+            throw new Error('mpv worker not found');
+
         const listener = (e: MessageEvent) => {
             try {
                 const payload = JSON.parse(e.data);
@@ -215,9 +218,8 @@ export default class MpvPlayer {
     }
 
     setupFsWorker() {
-        console.log(this.proxy.module.PThread)
         const threadId = this.proxy.module.getFsThread();
-        this.fsWorker = this.proxy.module.PThread.pthreads[threadId.toString()];
+        this.fsWorker = (this.proxy.module.PThread.pthreads as Record<string, Worker>)[threadId.toString()];
 
         const listener = (e: MessageEvent) => {
             const payload = JSON.parse(e.data);

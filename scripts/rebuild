@@ -11,7 +11,7 @@ fi
 
 install build_wasm/libmpv.js build_wasm/libmpv.wasm demo/public/static/js
 install build_wasm/libmpv.data demo/public
-install build_wasm/libmpv.js src
+install build_wasm/libmpv.js build_wasm/libmpv.d.ts src
 
 mkdir -p demo-vanilla/dist
 install build_wasm/libmpv.js build_wasm/libmpv.wasm build_wasm/libmpv.data demo-vanilla/dist

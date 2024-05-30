@@ -23,7 +23,7 @@
 #include <AL/alc.h>
 
 #include "thumbnail.h"
-#include "igs_reader.h"
+#include "libbluray.h"
 
 using namespace emscripten;
 using namespace std;
@@ -581,4 +581,16 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("getShaderCount", &get_shader_count);
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
     emscripten::function("createThumbnail", &create_thumbnail_thread);
+
+    value_object<bluray_title_info_t>("BlurayDiscInfo")
+        .field("playlistId", &bluray_title_info_t::playlist_id);
+
+    register_vector<bluray_title_info_t>("BlurayTitleVector");
+
+    value_object<bluray_disc_info_t>("BlurayDiscInfo")
+        .field("discName", &bluray_disc_info_t::disc_name)
+        .field("numTitles", &bluray_disc_info_t::num_titles)
+        .field("titles", &bluray_disc_info_t::titles);
+
+    emscripten::function("bdOpen", &open_bd_disc);
 }

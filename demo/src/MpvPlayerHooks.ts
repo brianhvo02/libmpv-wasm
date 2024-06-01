@@ -25,6 +25,7 @@ export const useMpvPlayer = () => {
     
     const [uploading, setUploading] = useState('');
     const [fileEnd, setFileEnd] = useState(false);
+    const [bluray, setBluray] = useState(false);
 
     const [shaderCount, setShaderCount] = useState<number>(0);
 
@@ -40,6 +41,7 @@ export const useMpvPlayer = () => {
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
         uploading, fileEnd, shaderCount,
+        bluray, setBluray,
         setVolume, setTitle, setElapsed
     }), [
         mpvPlayer, canvasRef, playerRef,
@@ -49,6 +51,7 @@ export const useMpvPlayer = () => {
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
         uploading, fileEnd, shaderCount,
+        bluray, setBluray,
         setVolume, setTitle, setElapsed
     ]);
 
@@ -75,6 +78,7 @@ export const useMpvPlayer = () => {
             },
             fileEnd: setFileEnd,
             shaderCount: setShaderCount,
+            blurayDiscInfo: val => setBluray(!!val),
         }).then(setMpvPlayer);
 
         ranOnce.current = true;

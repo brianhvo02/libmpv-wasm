@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const App = () => {
     const player = useMpvPlayer();
-    const { mpvPlayer, setTitle, fileEnd } = player;
+    const { mpvPlayer, setTitle, fileEnd, bluray } = player;
     const [openHeader, setOpenHeader] = useState(true);
     const [hideHeader, setHideHeader] = useState(false);
     const screenWidth = useRef(window.screen.width);
@@ -51,10 +51,10 @@ const App = () => {
     }, [hideHeader]);
 
     useEffect(() => {
-        if (!fileEnd) return;
+        if (!fileEnd || bluray) return;
         setTitle('');
         setOpenHeader(true);
-    }, [fileEnd, setTitle]);
+    }, [fileEnd, setTitle, bluray]);
 
     return (
         <div className="app">

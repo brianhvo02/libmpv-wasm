@@ -8,6 +8,7 @@
 #include <map>
 #include <cmath>
 #include <png.h>
+#include <libbluray/mobj_data.h>
 #include "base64.h"
 
 using namespace std;
@@ -20,6 +21,23 @@ const uint8_t PALETTE_SEGMENT = 0x14;
 const uint8_t PICTURE_SEGMENT = 0x15;
 const uint8_t BUTTON_SEGMENT  = 0x18;
 
+typedef struct bluray_hdmv_insn_t {
+    uint32_t op_cnt;
+    uint32_t grp;
+    uint32_t sub_grp;
+    uint32_t imm_op1;
+    uint32_t imm_op2;
+    uint32_t branch_opt;
+    uint32_t cmp_opt;
+    uint32_t set_opt;
+} bluray_hdmv_insn_t;
+
+typedef struct bluray_mobj_cmd_t {
+    bluray_hdmv_insn_t insn;
+    uint32_t dst;
+    uint32_t src;
+} bluray_mobj_cmd_t;
+
 typedef struct button_navigation_t {
     uint16_t up;
     uint16_t down;
@@ -31,12 +49,6 @@ typedef struct button_state_t {
     uint16_t start;
     uint16_t stop;
 } button_state_t;
-
-typedef struct button_command_t {
-    uint32_t operation_code;
-    uint32_t destination;
-    uint32_t source;
-} button_command_t;
 
 typedef struct button_t {
     uint16_t button_id;
@@ -52,7 +64,7 @@ typedef struct button_t {
     uint16_t selected_flags;
     button_state_t activated;
     uint16_t cmds_count;
-    vector<button_command_t> commands;
+    vector<bluray_mobj_cmd_t> commands;
 } button_t;
 
 typedef struct bog_t {
@@ -104,15 +116,6 @@ typedef struct page_t {
 typedef struct menu_t {
     uint16_t width;
     uint16_t height;
-    uint8_t framerate_id;
-    uint16_t composition_number;
-    uint8_t composition_state;
-    uint8_t seq_descriptor;
-    uint32_t data_len;
-    uint8_t model_flags;
-    uint64_t composition_timeout_pts;
-    uint64_t selection_timeout_pts;
-    uint32_t user_timeout_duration;
     uint8_t page_count;
     vector<page_t> pages;
 } menu_t;
@@ -127,10 +130,6 @@ typedef struct color_t {
 
 typedef struct picture_t {
     uint16_t id;
-    uint8_t ver;
-    uint8_t sequence_descriptor;
-    uint8_t is_continuation;
-    uint32_t rle_bitmap_length;
     uint16_t width;
     uint16_t height;
     vector<uint8_t> data;
@@ -143,6 +142,6 @@ typedef struct igs_t {
 } igs_t;
 
 igs_t extract_menu(char const *filename);
-string picture_to_base64_uri(picture_t picture, vector<color_t> palette);
+string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action);
 
 #endif /* IGS_READER_H */

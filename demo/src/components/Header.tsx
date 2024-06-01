@@ -91,7 +91,7 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
             </Modal>
             <FileExplorer onFileClick={path => {
                 if (!path.length) return;
-                player.mpvPlayer?.module.loadFile(path);
+                player.mpvPlayer?.module.loadFile(path, '');
                 player.setTitle(path);
                 setHideHeader(true);
                 if (!player.isPlaying)
@@ -192,11 +192,7 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
                     ) }
                 </ul>
             </Popover> */}
-            { <div className='navbar' onClick={() => {
-                const info = player.mpvPlayer?.module.bdOpen('/extfs');
-                // @ts-ignore
-                window.info = info;
-            }}>
+            { <div className='navbar' onClick={() => player.mpvPlayer?.loadBluray()}>
                 <span>Play Disc</span>
             </div> }
             { player.shaderCount > 0 && <>

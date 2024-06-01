@@ -1,10 +1,19 @@
 #include "igs_reader.h"
 
-static button_command_t get_button_command(uint8_t** segment_ptr) {
-    button_command_t command {
-        .operation_code = static_cast<uint16_t>(((*segment_ptr)[0] << 24) | ((*segment_ptr)[1] << 16) | ((*segment_ptr)[2] << 8) | (*segment_ptr)[3]),
-        .destination = static_cast<uint16_t>(((*segment_ptr)[4] << 24) | ((*segment_ptr)[5] << 16) | ((*segment_ptr)[6] << 8) | (*segment_ptr)[7]),
-        .source = static_cast<uint16_t>(((*segment_ptr)[8] << 24) | ((*segment_ptr)[9] << 16) | ((*segment_ptr)[10] << 8) | (*segment_ptr)[11])
+static bluray_mobj_cmd_t get_button_command(uint8_t** segment_ptr) {
+    bluray_mobj_cmd_t command {
+        .insn = {
+            .op_cnt = static_cast<uint8_t>(((*segment_ptr)[0] & 0xE0) >> 5),
+            .grp = static_cast<uint8_t>(((*segment_ptr)[0] & 0x18) >> 3),
+            .sub_grp = static_cast<uint8_t>((*segment_ptr)[0] & 0x07),
+            .imm_op1 = static_cast<uint8_t>(((*segment_ptr)[1] & 0x80) >> 7),
+            .imm_op2 = static_cast<uint8_t>(((*segment_ptr)[1] & 0x40) >> 6),
+            .branch_opt = static_cast<uint8_t>(((*segment_ptr)[1] & 0x0F)),
+            .cmp_opt = static_cast<uint8_t>(((*segment_ptr)[2] & 0x0F)),
+            .set_opt = static_cast<uint8_t>(((*segment_ptr)[3] & 0x1F))
+        },
+        .dst = static_cast<uint32_t>(((*segment_ptr)[4] << 24) | ((*segment_ptr)[5] << 16) | ((*segment_ptr)[6] << 8) | (*segment_ptr)[7]),
+        .src = static_cast<uint32_t>(((*segment_ptr)[8] << 24) | ((*segment_ptr)[9] << 16) | ((*segment_ptr)[10] << 8) | (*segment_ptr)[11])
     };
 
     (*segment_ptr) += 12;
@@ -44,7 +53,7 @@ static button_t get_button(uint8_t** segment_ptr) {
     (*segment_ptr) += 35;
 
     for (int cmd_idx = 0; cmd_idx < button.cmds_count; cmd_idx++) {
-        button_command_t command = get_button_command(segment_ptr);
+        bluray_mobj_cmd_t command = get_button_command(segment_ptr);
         button.commands.push_back(command);
     }
 
@@ -168,29 +177,11 @@ static menu_t get_menu(uint8_t** segment_ptr) {
 
     menu_t menu {
         .width = static_cast<uint16_t>(((*segment_ptr)[0] << 8) | (*segment_ptr)[1]),
-        .height = static_cast<uint16_t>(((*segment_ptr)[2] << 8) | (*segment_ptr)[3]),
-        .framerate_id = (*segment_ptr)[4],
-        .composition_number = static_cast<uint16_t>(((*segment_ptr)[5] << 8) | (*segment_ptr)[6]),
-        .composition_state = (*segment_ptr)[7],
-        .seq_descriptor = (*segment_ptr)[8],
-        .data_len = static_cast<uint16_t>(((*segment_ptr)[9] << 16) | ((*segment_ptr)[10] << 8) | (*segment_ptr)[11]),
-        .model_flags = (*segment_ptr)[12],
-        .composition_timeout_pts = 0,
-        .selection_timeout_pts = 0
+        .height = static_cast<uint16_t>(((*segment_ptr)[2] << 8) | (*segment_ptr)[3])
     };
+    (*segment_ptr) += ((*segment_ptr)[12] & 0x80) ? 13 : 23;
 
-    (*segment_ptr) += 13;
-    
-    if ((menu.model_flags & 0x80) == 0) {
-        menu.composition_timeout_pts = ((uint64_t)(*segment_ptr)[0] << 32) | ((*segment_ptr)[1] << 24) | ((*segment_ptr)[2] << 16) | ((*segment_ptr)[3] << 8) | (*segment_ptr)[4];
-        menu.selection_timeout_pts = ((uint64_t)(*segment_ptr)[5] << 32) | ((*segment_ptr)[6] << 24) | ((*segment_ptr)[7] << 16) | ((*segment_ptr)[8] << 8) | *segment_ptr[9];
-
-        (*segment_ptr) += 10;
-    }
-
-    menu.user_timeout_duration = ((*segment_ptr)[0] << 16) | ((*segment_ptr)[1] << 8) | (*segment_ptr)[2];
     menu.page_count = (*segment_ptr)[3];
-
     (*segment_ptr) += 4;
     
     for (int page_idx = 0; page_idx < menu.page_count; page_idx++) {
@@ -228,9 +219,17 @@ static vector<color_t> get_palette_segment(vector<uint8_t> pes_packet, uint16_t 
         uint8_t cb = pes_packet[5 + i * 5 + 3];
         uint8_t alpha = pes_packet[5 + i * 5 + 4];
 
-        int r = (int) (y + 1.40200 * (cr - 0x80));
-        int g = (int) (y - 0.34414 * (cb - 0x80) - 0.71414 * (cr - 0x80));
-        int b = (int) (y + 1.77200 * (cb - 0x80));
+        // int r = (int) (y + 1.40200 * (cr - 0x80));
+        // int g = (int) (y - 0.34414 * (cb - 0x80) - 0.71414 * (cr - 0x80));
+        // int b = (int) (y + 1.77200 * (cb - 0x80));
+
+        double sy = scale_y * (y - offset_y);
+        double scb = scale_uv * (cb - 128);
+        double scr = scale_uv * (cr - 128);
+
+        int r = sy                            + scr * (1 - kr);
+        int g = sy - scb * (1 - kb) * kb / kg - scr * (1 - kr) * kr / kg;
+        int b = sy + scb * (1 - kb);
 
         r = max(0, min(255, r));
         g = max(0, min(255, g));
@@ -253,9 +252,8 @@ static picture_t get_picture_segment(vector<uint8_t> pes_packet) {
     uint8_t is_continuation = !(pes_packet[6] & 0x80);
     picture_t picture {
         .id = static_cast<uint16_t>((pes_packet[3] << 8) | pes_packet[4]),
-        .ver = pes_packet[5],
-        .sequence_descriptor = pes_packet[6],
-        .is_continuation = is_continuation
+        .width = 0,
+        .height = 0
     };
 
     size_t i;
@@ -263,7 +261,6 @@ static picture_t get_picture_segment(vector<uint8_t> pes_packet) {
     size_t pixels_decoded = 0;
 
     if (!is_continuation) {
-        picture.rle_bitmap_length = (pes_packet[7] << 16) | (pes_packet[8] << 8) | pes_packet[9];
         picture.width = (pes_packet[10] << 8) | pes_packet[11];
         picture.height = (pes_packet[12] << 8) | pes_packet[13];
         i = 14;
@@ -324,8 +321,21 @@ static void PngWriteCallback(png_structp png, png_bytep data, png_size_t length)
     p->insert(p->end(), data, data + length);
 }
 
-string picture_to_base64_uri(picture_t picture, vector<color_t> palette) {
+string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action) {
     vector<uint8_t> buffer;
+
+    button_t button = igs.menu.pages[page_idx].bogs[bog_idx].buttons[button_idx];
+    picture_t picture;
+
+    if (state == "selected") {
+        picture = igs.pictures[action ? button.selected.start : button.selected.stop];
+    } else if (state == "activated") {
+        picture = igs.pictures[action ? button.activated.start : button.activated.stop];
+    } else {
+        picture = igs.pictures[action ? button.normal.start : button.normal.stop];
+    }
+
+    vector<color_t> palette = igs.palettes[igs.menu.pages[page_idx].palette];
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png) abort();
@@ -379,7 +389,6 @@ igs_t extract_menu(char const *filename) {
 
     vector<uint8_t> pes_packet;
     uint8_t pes_packet_type;
-    uint16_t pes_packet_length;
 
     menu_t menu;
     vector<vector<color_t>> palettes;
@@ -453,13 +462,10 @@ igs_t extract_menu(char const *filename) {
                 payload += 9 + payload[8];
 
                 pes_packet_type = payload[0];
-                pes_packet_length = (payload[1] << 8) | payload[2] + 3;
                 pes_packet.clear();
             }
             
-            uint8_t size = min(PACKET_SIZE - (unsigned long)(payload - packet.data()), pes_packet_length - pes_packet.size());
-
-            pes_packet.insert(pes_packet.end(), payload, payload + size);
+            pes_packet.insert(pes_packet.end(), payload, payload + (PACKET_SIZE - (payload - packet.data())));
             continue;
         }
 

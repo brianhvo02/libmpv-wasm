@@ -45,3 +45,12 @@ interface Chapter {
     title: string;
     time: number;
 }
+
+interface Vector<T> {
+    push_back(val: T): void;
+    resize(size: number, val: T): void;
+    size(): number;
+    get(idx: number): T | undefined;
+    set(idx: number, val: T): boolean;
+    delete(): void;
+}

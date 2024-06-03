@@ -5,6 +5,7 @@ import { PlayerContext } from '../MpvPlayerHooks';
 import PlayerControls from './PlayerControls';
 import { useMediaQuery } from '@mui/material';
 import json2mq from 'json2mq';
+import MpvPlayer from 'libmpv-wasm/build';
 
 interface PlayerProps {
     setHideHeader: Dispatch<SetStateAction<boolean>>;
@@ -93,6 +94,58 @@ const Player = ({ setHideHeader }: PlayerProps) => {
             document.removeEventListener('keydown', keyboardListener);
         }
     }, [player?.mpvPlayer?.module, player?.title]);
+
+    const [pictures, setPictures] = useState<HTMLImageElement[]>([]);
+
+    useEffect(() => {
+        if (!player?.mpvPlayer || player.blurayTitle < 0 || player.menuPageId < 0) return;
+        
+        const igs = player.currentPlaylist?.igs;
+        if (!igs) return;
+
+        setPictures([]);
+        Promise.all(
+            MpvPlayer.vectorToArray(igs.pictures)
+                .map((picture, i) => new Promise<HTMLImageElement>(resolve => {
+                    const base64 = player.mpvPlayer!.module.getPicture(igs, player.menuPageId, picture);
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = 'data:image/png;base64,' + base64;
+                }))
+        ).then(setPictures);
+    }, [player?.bluray, player?.blurayTitle, player?.currentPlaylist, player?.menuPageId, player?.mpvPlayer]);
+
+    useEffect(() => {
+        if (!player?.mpvPlayer || !player.overlayRef || player.blurayTitle < 0 || player.menuPageId < 0 || !pictures.length) return;
+
+        const igs = player.currentPlaylist?.igs;
+        if (!igs) return;
+        
+        const page = igs.menu.pages.get(player.menuPageId);
+        if (!page) return;
+
+        const ctx = player.overlayRef.current?.getContext('2d');
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, igs.menu.width, igs.menu.height);
+
+        const duration = MpvPlayer.vectorToArray(page.inEffects.effect)
+            .reduce((duration, effect) => duration + effect.duration, 0) / 90;
+
+        setTimeout(() => {
+            MpvPlayer.vectorToArray(page.bogs).forEach(bog => {
+                MpvPlayer.vectorToArray(bog.buttons).forEach(button => {
+                    console.log(button);
+                    if (button.autoAction)
+                        MpvPlayer.vectorToArray(button.commands)
+                            .forEach(command => player.mpvPlayer?.executeCommand(command));
+                    if (button.selected.start === 0xFFFF) return;
+                    // console.log('drawing button', button.selected.start, button.x, button.y);
+                    ctx.drawImage(pictures[button.selected.start], button.x, button.y);
+                });
+            });
+        }, duration);
+    }, [pictures, player?.bluray, player?.blurayTitle, player?.overlayRef, player?.currentPlaylist, player?.menuPageId, player?.mpvPlayer]);
     
     return (
         <div className='player' ref={player?.playerRef} tabIndex={0}
@@ -100,6 +153,9 @@ const Player = ({ setHideHeader }: PlayerProps) => {
             onDoubleClick={toggleFullscreen}
         >
             <canvas id='canvas' ref={player?.canvasRef} style={sizeStyle}/>
+            <canvas ref={player?.overlayRef} style={sizeStyle}
+                width={player?.currentPlaylist?.igs.menu.width} 
+                height={player?.currentPlaylist?.igs.menu.height} />
             <div className="canvas-blocker" 
                 onClick={e => setWillTogglePlay(e.detail === 1)} />
             { !!player?.title.length &&

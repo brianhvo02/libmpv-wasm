@@ -27,18 +27,18 @@ typedef struct bluray_clip_info_t {
     string clip_id;
     uint64_t in_time;
     uint64_t out_time;
-};
+} bluray_clip_info_t;
 
-typedef struct bluray_title_info_t {
+typedef struct bluray_playlist_info_t {
     vector<bluray_clip_info_t> clips;
     vector<BLURAY_TITLE_MARK> marks;
     igs_t igs;
-} bluray_title_info_t;
+} bluray_playlist_info_t;
 
 typedef struct bluray_disc_info_t {
     string disc_name;
-    uint32_t num_titles;
-    vector<bluray_title_info_t> titles;
+    uint32_t num_playlists;
+    vector<bluray_playlist_info_t> playlists;
     uint8_t first_play_supported;
     bluray_mobj_objects_t mobj;
 } bluray_disc_info_t;

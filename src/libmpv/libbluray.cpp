@@ -63,7 +63,7 @@ static igs_t get_menu(uint32_t playlist_id, string path) {
     return igs;
 }
 
-static bluray_title_info_t get_title_info(const BLURAY_TITLE_INFO *title, string path) {
+static bluray_playlist_info_t get_playlist_info(const BLURAY_TITLE_INFO *title, string path) {
     vector<bluray_clip_info_t> clips(title->clip_count);
     vector<BLURAY_TITLE_MARK> marks(title->marks, title->marks + title->mark_count);
     
@@ -82,20 +82,20 @@ bluray_disc_info_t open_bd_disc(string path) {
     assert(success == 1);
 
     const BLURAY_DISC_INFO *info = bd_get_disc_info(bd);
-    uint32_t num_titles = bd_get_titles(bd, 0, 0);
-    vector<bluray_title_info_t> titles(num_titles);
+    uint32_t num_playlists = bd_get_titles(bd, 0, 0);
+    vector<bluray_playlist_info_t> playlists(num_playlists);
 
-    for (uint32_t title_idx = 0; title_idx < num_titles; title_idx++) {
+    for (uint32_t title_idx = 0; title_idx < num_playlists; title_idx++) {
         const BLURAY_TITLE_INFO *title_info = bd_get_title_info(bd, title_idx, 0);
-        titles[title_idx] = get_title_info(title_info, path);
+        playlists[title_idx] = get_playlist_info(title_info, path);
     }
 
     bluray_mobj_objects_t mobj = read_mobj(path + "/BDMV/MovieObject.bdmv");
     
     return bluray_disc_info_t {
         info->disc_name,
-        num_titles,
-        titles,
+        num_playlists,
+        playlists,
         info->first_play_supported,
         mobj
     };

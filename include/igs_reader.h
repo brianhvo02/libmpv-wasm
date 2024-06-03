@@ -142,6 +142,7 @@ typedef struct igs_t {
 } igs_t;
 
 igs_t extract_menu(char const *filename);
+string get_button_picture_base64(igs_t igs, int page_idx, picture_t picture);
 string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action);
 
 #endif /* IGS_READER_H */

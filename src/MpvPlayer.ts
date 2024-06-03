@@ -4,8 +4,6 @@ import { isAudioTrack, isVideoTrack } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
 import { MainModule } from './libmpv.js';
 
-const LIMIT = 4 * 1024 * 1024 * 1024;
-
 type ProxyHandle<K, V> = (this: MpvPlayer, value: V, key: K) => void;
 interface ProxyOptions {
     idle: ProxyHandle<'idle', MpvPlayer['idle']>;
@@ -83,7 +81,7 @@ export default class MpvPlayer {
     playItemId = 0;
 
     menuSelected = 0;
-    menuPageId = 0;
+    menuPageId = -1;
 
     videoTracks: VideoTrack[] = [];
     audioTracks: AudioTrack[] = [];
@@ -345,7 +343,7 @@ export default class MpvPlayer {
             case 2:
                 return this.proxy.subtitleStream;
             case 4:
-                return this.proxy.blurayTitle;
+                return this.proxy.blurayTitle > -1 ? this.proxy.blurayTitle : 0;
             case 5:
                 return this.proxy.currentChapter;
             case 6:
@@ -355,7 +353,7 @@ export default class MpvPlayer {
             case 10:
                 return this.proxy.menuSelected;
             case 11:
-                return this.proxy.menuPageId;
+                return this.proxy.menuPageId > -1 ? this.proxy.menuPageId : 0;
             default:
                 console.log('Unknown PSR address:', addr);
                 return 0;
@@ -399,9 +397,15 @@ export default class MpvPlayer {
         }
     }
 
+    getCurrentPlaylist = () => {
+        const val = this.blurayDiscInfo?.playlists.get(this.playlistId);
+        console.log('clip size backend', this.playlistId, val?.clips.size());
+        return val;
+    };
+    getCurrentObject = () => this.blurayDiscInfo?.mobjObjects.objects.get(this.blurayTitle + this.firstPlaySupported);
+
     nextObjectCommand() {
-        const command = this.blurayDiscInfo?.mobjObjects
-            .objects.get(this.blurayTitle + this.firstPlaySupported)?.cmds.get(this.objectIdx);
+        const command = this.getCurrentObject()?.cmds.get(this.objectIdx);
         if (!command)
             throw new Error('Command not found');
 
@@ -454,7 +458,7 @@ export default class MpvPlayer {
                         switch (cmd.insn.branchOpt) {
                             case HDMV_INSN_PLAY.INSN_PLAY_PL:
                             case HDMV_INSN_PLAY.INSN_PLAY_PL_PI: {
-                                const clips = this.blurayDiscInfo?.titles.get(cmd.dst)?.clips;
+                                const clips = this.blurayDiscInfo?.playlists.get(cmd.dst)?.clips;
                                 if (!clips) throw new Error('Clip IDs not found');
 
                                 const vector = new this.module.StringVector();
@@ -467,11 +471,12 @@ export default class MpvPlayer {
 
                                 this.module.loadFiles(vector);
 
+                                this.proxy.playlistId = cmd.dst;
                                 this.proxy.objectIdx++;
                                 return 0;
                             }
                             case HDMV_INSN_PLAY.INSN_PLAY_PL_PM:
-                                const title = this.blurayDiscInfo?.titles.get(cmd.dst);
+                                const title = this.blurayDiscInfo?.playlists.get(cmd.dst);
                                 if (!title) throw new Error('Title not found');
 
                                 const playMark = title.marks.get(cmd.insn.immOp2 ? cmd.src : this.getMemoryValue(cmd.src));
@@ -491,6 +496,7 @@ export default class MpvPlayer {
 
                                 this.module.loadFiles(vector);
 
+                                this.proxy.playlistId = cmd.dst;
                                 this.proxy.objectIdx++;
                                 return 0;
                             case HDMV_INSN_PLAY.INSN_TERMINATE_PL:
@@ -518,7 +524,6 @@ export default class MpvPlayer {
                         console.log('INSN_BC not yet implemented');
                         return 0;
                     case HDMV_INSN_CMP.INSN_EQ:
-                        console.log('dstVal:', dstVal, 'srcVal:', srcVal);
                         dstVal === srcVal ? this.objectIdx++ : (this.objectIdx += 2);
                         return 1;
                     case HDMV_INSN_CMP.INSN_NE:

@@ -602,7 +602,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     register_vector<uint8_t>("Uint8Vector");
     register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
     register_vector<bluray_mobj_object_t>("MobjObjectVector");
-    register_vector<bluray_title_info_t>("BlurayTitleVector");
+    register_vector<bluray_playlist_info_t>("BlurayPlaylistVector");
     register_vector<button_t>("ButtonVector");
     register_vector<effect_object_t>("EffectObjectVector");
     register_map<uint8_t, window_t>("WindowMap");
@@ -745,18 +745,19 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("inTime", &bluray_clip_info_t::in_time)
         .field("outTime", &bluray_clip_info_t::out_time);
 
-    value_object<bluray_title_info_t>("BlurayTitleInfo")
-        .field("clips", &bluray_title_info_t::clips)
-        .field("marks", &bluray_title_info_t::marks)
-        .field("igs", &bluray_title_info_t::igs);
+    value_object<bluray_playlist_info_t>("BlurayTitleInfo")
+        .field("clips", &bluray_playlist_info_t::clips)
+        .field("marks", &bluray_playlist_info_t::marks)
+        .field("igs", &bluray_playlist_info_t::igs);
 
     value_object<bluray_disc_info_t>("BlurayDiscInfo")
         .field("discName", &bluray_disc_info_t::disc_name)
-        .field("numTitles", &bluray_disc_info_t::num_titles)
+        .field("numPlaylists", &bluray_disc_info_t::num_playlists)
         .field("firstPlaySupported", &bluray_disc_info_t::first_play_supported)
-        .field("titles", &bluray_disc_info_t::titles)
+        .field("playlists", &bluray_disc_info_t::playlists)
         .field("mobjObjects", &bluray_disc_info_t::mobj);
 
     emscripten::function("bdOpen", &open_bd_disc);
-    emscripten::function("getButtonPicture", &get_button_picture_base64);
+    emscripten::function("getPicture", select_overload<string(igs_t, int, picture_t)>(&get_button_picture_base64));
+    emscripten::function("getButtonPicture", select_overload<string(igs_t, int, int, int, string, bool)>(&get_button_picture_base64));
 }

@@ -2,7 +2,7 @@ import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from
 import { Player } from '../MpvPlayerHooks';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBackwardStep, faBookmark, faExpand, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBars, faBookmark, faCompass, faExpand, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
 
@@ -28,6 +28,8 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
         audioStream, audioTracks,
         currentChapter, chapters,
         subtitleStream, subtitleTracks,
+        blurayTitle,
+        currentObject, currentPlaylist
     } = player;
 
     const volumeRef = useRef<SVGSVGElement>(null);
@@ -78,7 +80,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     const marks = useMemo(() => chapters?.map(({ title, time }) => ({
         label: title,
         value: time
-    })), [chapters])
+    })), [chapters]);
 
     if (!mpvPlayer) return null;
 
@@ -129,6 +131,23 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         onClick={() => mpvPlayer.module.skipForward()}
                         style={pointerStyle}
                     />
+                    { currentObject?.menuCallMask === 0 &&
+                    <FontAwesomeIcon 
+                        icon={faBars} 
+                        onClick={() => {
+                            mpvPlayer.proxy.blurayTitle = 0;
+                            mpvPlayer.proxy.objectIdx = 0;
+                            mpvPlayer.proxy.menuPageId = 0;
+                            mpvPlayer.nextObjectCommand();
+                        }}
+                        style={pointerStyle}
+                    /> }
+                    { (currentPlaylist?.igs.menu.pageCount ?? 0) > 0 && blurayTitle !== 0 &&
+                    <FontAwesomeIcon 
+                        icon={faCompass} 
+                        onClick={() => {}}
+                        style={pointerStyle}
+                    /> }
                 </div>
                 <div className='media-info'>{title}</div>
                 <div className='adjustable'>

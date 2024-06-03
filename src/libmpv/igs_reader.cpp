@@ -321,20 +321,8 @@ static void PngWriteCallback(png_structp png, png_bytep data, png_size_t length)
     p->insert(p->end(), data, data + length);
 }
 
-string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action) {
+string get_button_picture_base64(igs_t igs, int page_idx, picture_t picture) {
     vector<uint8_t> buffer;
-
-    button_t button = igs.menu.pages[page_idx].bogs[bog_idx].buttons[button_idx];
-    picture_t picture;
-
-    if (state == "selected") {
-        picture = igs.pictures[action ? button.selected.start : button.selected.stop];
-    } else if (state == "activated") {
-        picture = igs.pictures[action ? button.activated.start : button.activated.stop];
-    } else {
-        picture = igs.pictures[action ? button.normal.start : button.normal.stop];
-    }
-
     vector<color_t> palette = igs.palettes[igs.menu.pages[page_idx].palette];
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -375,6 +363,21 @@ string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int butto
     png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
 
     return base64_encode(buffer.data(), buffer.size());
+}
+
+string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action) {
+    button_t button = igs.menu.pages[page_idx].bogs[bog_idx].buttons[button_idx];
+    picture_t picture;
+
+    if (state == "selected") {
+        picture = igs.pictures[action ? button.selected.start : button.selected.stop];
+    } else if (state == "activated") {
+        picture = igs.pictures[action ? button.activated.start : button.activated.stop];
+    } else {
+        picture = igs.pictures[action ? button.normal.start : button.normal.stop];
+    }
+
+    return get_button_picture_base64(igs, page_idx, picture);
 }
 
 igs_t extract_menu(char const *filename) {

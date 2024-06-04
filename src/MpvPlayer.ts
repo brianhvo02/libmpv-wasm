@@ -425,7 +425,7 @@ export default class MpvPlayer {
     async nextObjectCommand() {
         const command = this.getCurrentObject()?.cmds.get(this.objectIdx);
         if (!command)
-            throw new Error('Command not found');
+            throw new Error('Object command not found');
 
         if (await this.executeCommand(command))
             this.nextObjectCommand();
@@ -466,7 +466,7 @@ export default class MpvPlayer {
         const command = button?.commands.get(this.menuIdx);
         
         if (!command)
-            throw new Error('Command not found');
+            throw new Error('Menu command not found');
 
         if ((button?.autoAction || this.menuActivated) && await this.executeCommand(command, true))
             this.nextMenuCommand();
@@ -487,7 +487,7 @@ export default class MpvPlayer {
     }
 
     async executeCommand(cmd: MobjCmd, menu = false) {
-        console.log(this.memory, this.menuPageId, this.menuSelected, this.menuIdx);
+        if (menu) console.log(this.memory, this.menuPageId, this.menuSelected, this.menuIdx);
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
                 switch (cmd.insn.subGrp) {
@@ -536,14 +536,15 @@ export default class MpvPlayer {
                         }
                         return 0;
                     case HDMV_INSN_GRP_BRANCH.BRANCH_PLAY:
+                        const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
+                        const srcVal = cmd.insn.immOp2 ? cmd.src : this.getMemoryValue(cmd.src);
                         switch (cmd.insn.branchOpt) {
                             case HDMV_INSN_PLAY.INSN_PLAY_PL:
                             case HDMV_INSN_PLAY.INSN_PLAY_PL_PI: {
-                                const clips = this.blurayDiscInfo?.playlists.get(cmd.dst)?.clips;
+                                const clips = this.blurayDiscInfo?.playlists.get(dstVal)?.clips;
                                 if (!clips) throw new Error('Clip IDs not found');
 
-                                const src = cmd.insn.branchOpt === HDMV_INSN_PLAY.INSN_PLAY_PL || cmd.insn.immOp2 
-                                    ? cmd.src : this.getMemoryValue(cmd.src);
+                                const src = cmd.insn.branchOpt === HDMV_INSN_PLAY.INSN_PLAY_PL ? cmd.src : srcVal;
 
                                 const vector = new this.module.StringVector();
                                 MpvPlayer.vectorToArray(clips).slice(src)
@@ -553,7 +554,7 @@ export default class MpvPlayer {
 
                                 this.module.loadFiles(vector);
 
-                                this.proxy.playlistId = cmd.dst;
+                                this.proxy.playlistId = dstVal;
                                 this.proxy.playlistIdx = src;
                                 this.proxy.objectIdx++;
                                 this.getBlurayChapters();
@@ -561,15 +562,15 @@ export default class MpvPlayer {
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0;
                             }
-                            case HDMV_INSN_PLAY.INSN_PLAY_PL_PM:
-                                const title = this.blurayDiscInfo?.playlists.get(cmd.dst);
-                                if (!title) throw new Error('Title not found');
+                            case HDMV_INSN_PLAY.INSN_PLAY_PL_PM: {
+                                const playlist = this.blurayDiscInfo?.playlists.get(dstVal);
+                                if (!playlist) throw new Error('Playlist not found');
 
-                                const playMark = title.marks.get(cmd.insn.immOp2 ? cmd.src : this.getMemoryValue(cmd.src));
+                                const playMark = playlist.marks.get(srcVal);
                                 if (!playMark) throw new Error('Play mark not found');
 
                                 const vector = new this.module.StringVector();
-                                const clips = MpvPlayer.vectorToArray(title.clips);
+                                const clips = MpvPlayer.vectorToArray(playlist.clips);
                                 const duration = clips.slice(0, playMark.clipRef)
                                     .reduce((duration, clip) => duration + clip.outTime - clip.inTime, 0n);
                                 clips.slice(playMark.clipRef)
@@ -582,21 +583,62 @@ export default class MpvPlayer {
 
                                 this.module.loadFiles(vector);
 
-                                this.proxy.playlistId = cmd.dst;
+                                this.proxy.playlistId = dstVal;
                                 this.proxy.playlistIdx = playMark.clipRef;
                                 this.getBlurayChapters();
                                 this.proxy.objectIdx++;
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0;
+                            }
                             case HDMV_INSN_PLAY.INSN_TERMINATE_PL:
                                 console.log('INSN_TERMINATE_PL not yet implemented');
                                 return 0;
-                            case HDMV_INSN_PLAY.INSN_LINK_PI:
-                                console.log('INSN_LINK_PI not yet implemented');
+                            case HDMV_INSN_PLAY.INSN_LINK_PI: {
+                                const clips = this.getCurrentPlaylist()?.clips;
+                                if (!clips) throw new Error('Clip IDs not found');
+
+                                const vector = new this.module.StringVector();
+                                MpvPlayer.vectorToArray(clips).slice(dstVal)
+                                    .forEach((clip, i) => i 
+                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`) 
+                                        : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
+
+                                this.module.loadFiles(vector);
+
+                                this.proxy.playlistIdx = dstVal;
+                                this.proxy.objectIdx++;
+                                this.getBlurayChapters();
+                                if (menu) this.resetMenu();
+                                else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0;
+                            }
                             case HDMV_INSN_PLAY.INSN_LINK_MK:
-                                console.log('INSN_LINK_MK not yet implemented');
+                                const playlist = this.getCurrentPlaylist();
+                                if (!playlist) throw new Error('Playlist not found');
+
+                                const playMark = playlist.marks.get(dstVal);
+                                if (!playMark) throw new Error('Play mark not found');
+
+                                const vector = new this.module.StringVector();
+                                const clips = MpvPlayer.vectorToArray(playlist.clips);
+                                const duration = clips.slice(0, playMark.clipRef)
+                                    .reduce((duration, clip) => duration + clip.outTime - clip.inTime, 0n);
+                                clips.slice(playMark.clipRef)
+                                    .forEach((clip, i) => i
+                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`)
+                                        : this.module.loadFile(
+                                            `/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            `start=${(playMark.start - duration) / 90000n}`
+                                        ));
+
+                                this.module.loadFiles(vector);
+
+                                this.proxy.playlistIdx = playMark.clipRef;
+                                this.getBlurayChapters();
+                                this.proxy.objectIdx++;
+                                if (menu) this.resetMenu();
+                                else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0; 
                             default:
                                 console.log('Unknown BRANCH_PLAY:', cmd.insn.branchOpt.toString(16));
@@ -655,33 +697,53 @@ export default class MpvPlayer {
                             case HDMV_INSN_SET.INSN_SWAP:
                                 this.setMemoryValue(cmd.dst, srcVal);
                                 this.setMemoryValue(cmd.src, dstVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_ADD:
                                 this.setMemoryValue(cmd.dst, dstVal + srcVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_SUB:
                                 this.setMemoryValue(cmd.dst, dstVal - srcVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_MUL:
                                 this.setMemoryValue(cmd.dst, dstVal * srcVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_DIV:
                                 this.setMemoryValue(cmd.dst, dstVal / srcVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_MOD:
                                 this.setMemoryValue(cmd.dst, dstVal % srcVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_RND:
                                 this.setMemoryValue(cmd.dst, getRandom(1, srcVal));
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_AND:
                                 this.setMemoryValue(cmd.dst, srcVal & dstVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_OR:
                                 this.setMemoryValue(cmd.dst, srcVal | dstVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_XOR:
                                 this.setMemoryValue(cmd.dst, srcVal ^ dstVal);
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_BITSET:
                                 console.log('INSN_BITSET not yet implemented');

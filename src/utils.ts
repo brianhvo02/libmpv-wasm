@@ -10,3 +10,10 @@ export const isVideoTrack = (track: Track): track is VideoTrack =>
 
 export const isAudioTrack = (track: Track): track is AudioTrack =>
     track.type === 'audio';
+
+export const loadImage = (url: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+});

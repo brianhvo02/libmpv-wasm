@@ -110,7 +110,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         mpvPlayer.module.setPlaybackTime(val);
                     }}
                     marks={marks && marks.length > 1 ? marks : false}
-                    disabled={!mouseIsMoving}
+                    disabled={!mouseIsMoving || mpvPlayer.blurayTitle === 0}
                 />
                 <span>{formatTime(duration)}</span>
             </div>
@@ -134,18 +134,16 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                     { currentObject?.menuCallMask === 0 &&
                     <FontAwesomeIcon 
                         icon={faBars} 
-                        onClick={() => {
-                            mpvPlayer.proxy.blurayTitle = 0;
-                            mpvPlayer.proxy.objectIdx = 0;
-                            mpvPlayer.proxy.menuPageId = 0;
-                            mpvPlayer.nextObjectCommand();
-                        }}
+                        onClick={() => mpvPlayer.openTopMenu()}
                         style={pointerStyle}
                     /> }
                     { (currentPlaylist?.igs.menu.pageCount ?? 0) > 0 && blurayTitle !== 0 &&
                     <FontAwesomeIcon 
                         icon={faCompass} 
-                        onClick={() => {}}
+                        onClick={() => {
+                            mpvPlayer.resetMenu();
+                            mpvPlayer.nextMenuCommand();
+                        }}
                         style={pointerStyle}
                     /> }
                 </div>

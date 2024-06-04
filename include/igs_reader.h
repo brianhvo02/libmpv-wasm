@@ -8,6 +8,7 @@
 #include <map>
 #include <cmath>
 #include <png.h>
+#include <string>
 #include <libbluray/mobj_data.h>
 #include "base64.h"
 
@@ -96,7 +97,7 @@ typedef struct effect_t {
 } effect_t;
 
 typedef struct window_effect_t {
-    map<uint8_t, window_t> windows;
+    map<string, window_t> windows;
     vector<effect_t> effects;
 } window_effect_t;
 
@@ -135,14 +136,19 @@ typedef struct picture_t {
     vector<uint8_t> data;
 } picture_t;
 
+typedef struct picture_extended_t {
+    uint16_t id;
+    uint16_t width;
+    uint16_t height;
+    map<string, string> data;
+} picture_extended_t;
+
 typedef struct igs_t {
     menu_t menu;
     vector<vector<color_t>> palettes;
-    vector<picture_t> pictures;
+    map<string, picture_extended_t> pictures;
 } igs_t;
 
 igs_t extract_menu(char const *filename);
-string get_button_picture_base64(igs_t igs, int page_idx, picture_t picture);
-string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action);
 
 #endif /* IGS_READER_H */

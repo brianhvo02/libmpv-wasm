@@ -599,21 +599,22 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
     emscripten::function("createThumbnail", &create_thumbnail_thread);
 
-    register_vector<uint8_t>("Uint8Vector");
     register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
     register_vector<bluray_mobj_object_t>("MobjObjectVector");
     register_vector<bluray_playlist_info_t>("BlurayPlaylistVector");
     register_vector<button_t>("ButtonVector");
     register_vector<effect_object_t>("EffectObjectVector");
-    register_map<uint8_t, window_t>("WindowMap");
     register_vector<effect_t>("EffectVector");
     register_vector<bog_t>("BogVector");
     register_vector<page_t>("PageVector");
     register_vector<color_t>("ColorVector");
     register_vector<vector<color_t>>("PaletteVector");
-    register_vector<picture_t>("PictureVector");
     register_vector<BLURAY_TITLE_MARK>("BlurayTitleMarkVector");
     register_vector<bluray_clip_info_t>("BlurayClipInfoVector");
+
+    register_map<string, window_t>("WindowMap");
+    register_map<string, string>("StringMap");
+    register_map<string, picture_extended_t>("PictureMap");
 
     value_object<bluray_hdmv_insn_t>("HdmvInsn")
         .field("opCnt", &bluray_hdmv_insn_t::op_cnt)
@@ -693,8 +694,8 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("objects", &effect_t::objects);
 
     value_object<window_effect_t>("WindowEffect")
-        .field("window", &window_effect_t::windows)
-        .field("effect", &window_effect_t::effects);
+        .field("windows", &window_effect_t::windows)
+        .field("effects", &window_effect_t::effects);
 
     value_object<page_t>("Page")
         .field("id", &page_t::id)
@@ -721,11 +722,11 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("b", &color_t::b)
         .field("alpha", &color_t::alpha);
 
-    value_object<picture_t>("Picture")
-        .field("id", &picture_t::id)
-        .field("width", &picture_t::width)
-        .field("height", &picture_t::height)
-        .field("data", &picture_t::data);
+    value_object<picture_extended_t>("Picture")
+        .field("id", &picture_extended_t::id)
+        .field("width", &picture_extended_t::width)
+        .field("height", &picture_extended_t::height)
+        .field("data", &picture_extended_t::data);
 
     value_object<igs_t>("Igs")
         .field("menu", &igs_t::menu)
@@ -745,7 +746,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("inTime", &bluray_clip_info_t::in_time)
         .field("outTime", &bluray_clip_info_t::out_time);
 
-    value_object<bluray_playlist_info_t>("BlurayTitleInfo")
+    value_object<bluray_playlist_info_t>("BlurayPlaylistInfo")
         .field("clips", &bluray_playlist_info_t::clips)
         .field("marks", &bluray_playlist_info_t::marks)
         .field("igs", &bluray_playlist_info_t::igs);
@@ -758,6 +759,4 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("mobjObjects", &bluray_disc_info_t::mobj);
 
     emscripten::function("bdOpen", &open_bd_disc);
-    emscripten::function("getPicture", select_overload<string(igs_t, int, picture_t)>(&get_button_picture_base64));
-    emscripten::function("getButtonPicture", select_overload<string(igs_t, int, int, int, string, bool)>(&get_button_picture_base64));
 }

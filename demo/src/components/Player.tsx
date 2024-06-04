@@ -68,55 +68,18 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         : document.body.requestFullscreen(), 
     []);
 
-    useEffect(() => {
-        const module = player?.mpvPlayer?.module;
-        if (!module) return;
-
-        const keyboardListener = (e: KeyboardEvent) => {
-            if (!player.title.length) return;
-
-            switch (e.code) {
-                case 'Space':
-                    module.togglePlay();
-                    break;
-                case 'ArrowLeft':
-                    module.skipBackward();
-                    break;
-                case 'ArrowRight':
-                    module.skipForward();
-                    break;
-            }
-        }
-
-        document.addEventListener('keydown', keyboardListener);
-
-        return () => {
-            document.removeEventListener('keydown', keyboardListener);
-        }
-    }, [player?.mpvPlayer?.module, player?.title]);
-
-    const [pictures, setPictures] = useState<HTMLImageElement[]>([]);
+    const playlistPictures = useMemo(
+        () => player?.menuPictures[player.playlistId], 
+        [player?.menuPictures, player?.playlistId]
+    );
 
     useEffect(() => {
-        if (!player?.mpvPlayer || player.blurayTitle < 0 || player.menuPageId < 0) return;
-        
-        const igs = player.currentPlaylist?.igs;
-        if (!igs) return;
+        const ctx = player?.overlayRef.current?.getContext('2d');
+        if (!ctx) return;
 
-        setPictures([]);
-        Promise.all(
-            MpvPlayer.vectorToArray(igs.pictures)
-                .map((picture, i) => new Promise<HTMLImageElement>(resolve => {
-                    const base64 = player.mpvPlayer!.module.getPicture(igs, player.menuPageId, picture);
-                    const img = new Image();
-                    img.onload = () => resolve(img);
-                    img.src = 'data:image/png;base64,' + base64;
-                }))
-        ).then(setPictures);
-    }, [player?.bluray, player?.blurayTitle, player?.currentPlaylist, player?.menuPageId, player?.mpvPlayer]);
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-    useEffect(() => {
-        if (!player?.mpvPlayer || !player.overlayRef || player.blurayTitle < 0 || player.menuPageId < 0 || !pictures.length) return;
+        if (!player?.mpvPlayer || player.blurayTitle < 0 || player.menuPageId < 0 || !playlistPictures) return;
 
         const igs = player.currentPlaylist?.igs;
         if (!igs) return;
@@ -124,28 +87,74 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         const page = igs.menu.pages.get(player.menuPageId);
         if (!page) return;
 
-        const ctx = player.overlayRef.current?.getContext('2d');
-        if (!ctx) return;
+        MpvPlayer.vectorToArray(page.bogs).forEach((bog, i) => {
+            const button = MpvPlayer.vectorToArray(bog.buttons)
+                .find(({ buttonId }) => buttonId === bog.defButton);
+            if (!button) return;
 
-        ctx.clearRect(0, 0, igs.menu.width, igs.menu.height);
+            const pictureId = player.menuSelected === i ? player.menuActivated ? button.activated : button.selected : button.normal;
+            if (!pictureId || pictureId.start === 0xFFFF) return;
 
-        const duration = MpvPlayer.vectorToArray(page.inEffects.effect)
-            .reduce((duration, effect) => duration + effect.duration, 0) / 90;
+            ctx.drawImage(playlistPictures[pictureId.start][page.palette], button.x, button.y);
+        });
+    }, [
+        playlistPictures,
+        player?.bluray, player?.blurayTitle, player?.overlayRef, player?.currentPlaylist, 
+        player?.menuPageId, player?.mpvPlayer, player?.menuSelected, player?.menuActivated
+    ]);
 
-        setTimeout(() => {
-            MpvPlayer.vectorToArray(page.bogs).forEach(bog => {
-                MpvPlayer.vectorToArray(bog.buttons).forEach(button => {
-                    console.log(button);
-                    if (button.autoAction)
-                        MpvPlayer.vectorToArray(button.commands)
-                            .forEach(command => player.mpvPlayer?.executeCommand(command));
-                    if (button.selected.start === 0xFFFF) return;
-                    // console.log('drawing button', button.selected.start, button.x, button.y);
-                    ctx.drawImage(pictures[button.selected.start], button.x, button.y);
-                });
-            });
-        }, duration);
-    }, [pictures, player?.bluray, player?.blurayTitle, player?.overlayRef, player?.currentPlaylist, player?.menuPageId, player?.mpvPlayer]);
+    const onKeyDown = useCallback((e: KeyboardEvent) => {
+        const module = player?.mpvPlayer?.module;
+        if (!module || !player.title.length) return;
+
+        if (player?.menuPageId > 0) {
+            if (!player.mpvPlayer) return;
+
+            const bog = player.mpvPlayer.getCurrentMenu()?.bogs.get(player.menuSelected);
+            if (!bog) return;
+            
+            const nav = MpvPlayer.vectorToArray(bog.buttons).find(({ buttonId }) => buttonId === bog.defButton)?.navigation;
+            if (!nav) return;
+
+            switch (e.code) {
+                case 'ArrowUp':
+                    player.mpvPlayer.setMenuSelected(nav.up);
+                    return;
+                case 'ArrowDown':
+                    player.mpvPlayer.setMenuSelected(nav.down);
+                    return;
+                case 'ArrowLeft':
+                    player.mpvPlayer.setMenuSelected(nav.left);
+                    return;
+                case 'ArrowRight':
+                    player.mpvPlayer.setMenuSelected(nav.right);
+                    return;
+                case 'Enter':
+                    player.mpvPlayer.menuActivate();
+                    return;
+            }
+        } else {
+            switch (e.code) {
+                case 'ArrowLeft':
+                    module.skipBackward();
+                    return;
+                case 'ArrowRight':
+                    module.skipForward();
+                    return;
+                case 'Space':
+                    module.togglePlay();
+                    break;
+            }
+        }
+    }, [player?.menuPageId, player?.menuSelected, player?.mpvPlayer, player?.title]);
+
+    useEffect(() => {
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+        }
+    }, [onKeyDown]);
     
     return (
         <div className='player' ref={player?.playerRef} tabIndex={0}

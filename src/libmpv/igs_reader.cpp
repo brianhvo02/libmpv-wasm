@@ -25,6 +25,7 @@ static button_t get_button(uint8_t** segment_ptr) {
         .button_id = static_cast<uint16_t>(((*segment_ptr)[0] << 8) | (*segment_ptr)[1]),
         .v = static_cast<uint16_t>(((*segment_ptr)[2] << 8) | (*segment_ptr)[3]),
         .f = (*segment_ptr)[4],
+        .auto_action = static_cast<uint8_t>((*segment_ptr)[4] & 0x80),
         .x = static_cast<uint16_t>(((*segment_ptr)[5] << 8) | (*segment_ptr)[6]),
         .y = static_cast<uint16_t>(((*segment_ptr)[7] << 8) | (*segment_ptr)[8]),
         .navigation = {
@@ -90,13 +91,13 @@ static window_t get_window(uint8_t** segment_ptr) {
     return window;
 }
 
-static effect_object_t get_effect_object(uint8_t** segment_ptr, map<uint8_t, window_t> windows) {
+static effect_object_t get_effect_object(uint8_t** segment_ptr, map<string, window_t> windows) {
     uint16_t id = ((*segment_ptr)[0] << 8) | (*segment_ptr)[1];
     uint16_t window_id = ((*segment_ptr)[2] << 8) | (*segment_ptr)[3];
 
     effect_object_t object {
         .id = id,
-        .window = windows.at(window_id),
+        .window = windows.at(to_string(window_id)),
         .x = static_cast<uint16_t>(((*segment_ptr)[4] << 8) | (*segment_ptr)[5]),
         .y = static_cast<uint16_t>(((*segment_ptr)[6] << 8) | (*segment_ptr)[7])
     };
@@ -105,7 +106,7 @@ static effect_object_t get_effect_object(uint8_t** segment_ptr, map<uint8_t, win
     return object;
 }
 
-static effect_t get_effect(uint8_t** segment_ptr, map<uint8_t, window_t> windows) {
+static effect_t get_effect(uint8_t** segment_ptr, map<string, window_t> windows) {
     effect_t effect {
         .duration = static_cast<uint32_t>(((*segment_ptr)[0] << 16) | ((*segment_ptr)[1] << 8) | (*segment_ptr)[2]),
         .palette = (*segment_ptr)[3],
@@ -129,7 +130,7 @@ static window_effect_t get_window_effect(uint8_t** segment_ptr) {
 
     for (int window_idx = 0; window_idx < window_count; window_idx++) {
         window_t window = get_window(segment_ptr);
-        window_effect.windows[window.id] = window;
+        window_effect.windows[to_string(window.id)] = window;
     }
 
     uint8_t effect_count = (*segment_ptr)[0];
@@ -321,9 +322,8 @@ static void PngWriteCallback(png_structp png, png_bytep data, png_size_t length)
     p->insert(p->end(), data, data + length);
 }
 
-string get_button_picture_base64(igs_t igs, int page_idx, picture_t picture) {
+string get_button_picture_base64(vector<color_t> palette, picture_t picture) {
     vector<uint8_t> buffer;
-    vector<color_t> palette = igs.palettes[igs.menu.pages[page_idx].palette];
 
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png) abort();
@@ -363,21 +363,6 @@ string get_button_picture_base64(igs_t igs, int page_idx, picture_t picture) {
     png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
 
     return base64_encode(buffer.data(), buffer.size());
-}
-
-string get_button_picture_base64(igs_t igs, int page_idx, int bog_idx, int button_idx, string state, bool action) {
-    button_t button = igs.menu.pages[page_idx].bogs[bog_idx].buttons[button_idx];
-    picture_t picture;
-
-    if (state == "selected") {
-        picture = igs.pictures[action ? button.selected.start : button.selected.stop];
-    } else if (state == "activated") {
-        picture = igs.pictures[action ? button.activated.start : button.activated.stop];
-    } else {
-        picture = igs.pictures[action ? button.normal.start : button.normal.stop];
-    }
-
-    return get_button_picture_base64(igs, page_idx, picture);
 }
 
 igs_t extract_menu(char const *filename) {
@@ -520,9 +505,44 @@ igs_t extract_menu(char const *filename) {
         }
     }
 
+    map<string, picture_extended_t> picture_data;
+    picture_extended_t* decoded;
+    
+    for (auto page : menu.pages) {
+        for (auto bog : page.bogs) {
+            for (auto button: bog.buttons) {
+                uint16_t picture_ids[6] = { 
+                    button.normal.start, button.normal.stop, 
+                    button.selected.start, button.selected.stop, 
+                    button.activated.start, button.activated.stop 
+                };
+
+                for (auto picture_id : picture_ids) {
+                    if (picture_id == 0xFFFF) continue;
+
+                    if (picture_data.find(to_string(picture_id)) == picture_data.end()) {
+                        picture_t picture = pictures.at(picture_id);
+                        picture_data.insert({ to_string(picture_id), {
+                            .id = picture.id,
+                            .width = picture.width,
+                            .height = picture.height
+                        } });
+                    }
+                    decoded = &picture_data.at(to_string(picture_id));
+
+                    if (decoded->data.find(to_string(page.palette)) != decoded->data.end())
+                        continue;
+
+                    string base64 = get_button_picture_base64(palettes.at(page.palette), pictures.at(picture_id));
+                    decoded->data.insert({ to_string(page.palette), base64 });
+                }
+            }
+        }
+    }
+
     return igs_t {
         .menu = menu,
         .palettes = palettes,
-        .pictures = pictures
+        .pictures = picture_data
     };
 }

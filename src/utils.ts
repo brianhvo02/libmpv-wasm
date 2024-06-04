@@ -17,3 +17,9 @@ export const loadImage = (url: string) => new Promise<HTMLImageElement>((resolve
     img.onerror = reject;
     img.src = url;
 });
+
+export const getRandom = (min: number, max: number) => {
+    const minCeiled = Math.ceil(min);
+    const maxFloored = Math.floor(max);
+    return Math.floor(Math.random() * (maxFloored - minCeiled) + minCeiled);
+}

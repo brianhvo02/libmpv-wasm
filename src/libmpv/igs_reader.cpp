@@ -249,23 +249,16 @@ static vector<color_t> get_palette_segment(vector<uint8_t> pes_packet, uint16_t 
     return palettes;
 }
 
-static picture_t get_picture_segment(vector<uint8_t> pes_packet) {
-    uint8_t is_continuation = !(pes_packet[6] & 0x80);
-    picture_t picture {
-        .id = static_cast<uint16_t>((pes_packet[3] << 8) | pes_packet[4]),
-        .width = 0,
-        .height = 0
-    };
-
-    size_t i;
+static picture_t get_picture_segment(uint16_t picture_id, vector<uint8_t> pes_packet) {
+    size_t i = 4;
     vector<uint8_t> decoded_data;
     size_t pixels_decoded = 0;
-
-    if (!is_continuation) {
-        picture.width = (pes_packet[10] << 8) | pes_packet[11];
-        picture.height = (pes_packet[12] << 8) | pes_packet[13];
-        i = 14;
-    } else i = 7;
+        
+    picture_t picture = {
+        .id = picture_id,
+        .width = static_cast<uint16_t>((pes_packet[0] << 8) | pes_packet[1]),
+        .height = static_cast<uint16_t>((pes_packet[2] << 8) | pes_packet[3]),
+    };
 
     while (i < pes_packet.size()) {
         uint8_t color = pes_packet[i];
@@ -297,6 +290,7 @@ static picture_t get_picture_segment(vector<uint8_t> pes_packet) {
                 decoded_data.push_back(color);
             pixels_decoded += run;
         } else if (pixels_decoded % picture.width != 0) {
+            printf("pixels_decoded: %lu, picture.width: %u\n", pixels_decoded, picture.width);
             printf("Incorrect number of pixels\n");
             abort();
         }
@@ -377,10 +371,15 @@ igs_t extract_menu(char const *filename) {
 
     vector<uint8_t> pes_packet;
     uint8_t pes_packet_type;
+    uint16_t pes_length;
 
     menu_t menu;
     vector<vector<color_t>> palettes;
     vector<picture_t> pictures;
+
+    uint16_t picture_id;
+    uint32_t rlen;
+    vector<uint8_t> picture_buffer;
 
     while (stream) {
         count++;
@@ -424,6 +423,8 @@ igs_t extract_menu(char const *filename) {
         if (is_elementary) {
             if (payload_unit_start_indicator) {
                 if (pes_packet.size() > 0) {
+                    assert(pes_packet.size() == pes_length);
+
                     switch (pes_packet_type) {
                         case BUTTON_SEGMENT: {
                             uint8_t *segment = pes_packet.data();
@@ -436,8 +437,24 @@ igs_t extract_menu(char const *filename) {
                             break;
                         }
                         case PICTURE_SEGMENT: {
-                            picture_t picture = get_picture_segment(pes_packet);
-                            pictures.push_back(picture);
+                            uint16_t current_picture_id = static_cast<uint16_t>((pes_packet[3] << 8) | pes_packet[4]);
+                            uint8_t is_continuation = !(pes_packet[6] & 0x80);
+                            if (!is_continuation) {
+                                rlen = ((uint32_t)pes_packet[7] << 16) | (pes_packet[8] << 8) | pes_packet[9];
+                                picture_id = current_picture_id;
+                            } else {
+                                assert(current_picture_id == picture_id);
+                            }
+
+                            if ((!is_continuation && rlen == pes_packet.size() - 10) || is_continuation && rlen == picture_buffer.size() + pes_packet.size() - 7) {
+                                picture_buffer.insert(picture_buffer.end(), pes_packet.begin() + (is_continuation ? 7 : 10), pes_packet.end());
+                                picture_t picture = get_picture_segment(current_picture_id, picture_buffer);
+                                pictures.push_back(picture);
+                                picture_buffer.clear();
+                            } else {
+                                picture_buffer.insert(picture_buffer.end(), pes_packet.begin() + (is_continuation ? 7 : 10), pes_packet.end());
+                            }
+                            
                             break;
                         }
                         default:
@@ -447,6 +464,8 @@ igs_t extract_menu(char const *filename) {
 
                 assert(payload[0] << 16 | payload[1] << 8 | payload[2] == 0x000001);
                 
+                pes_length = (((uint16_t)payload[4] << 8) | payload[5]) - 3 - payload[8];
+
                 payload += 9 + payload[8];
 
                 pes_packet_type = payload[0];

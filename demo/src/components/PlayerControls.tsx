@@ -77,10 +77,12 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
         return { pointerEvents: mouseIsMoving ? 'auto' : 'none' };
     }, [mouseIsMoving]);
 
-    const marks = useMemo(() => chapters?.map(({ title, time }) => ({
-        label: title,
-        value: time
-    })), [chapters]);
+    const marks = useMemo(() => chapters?.filter(({ title }) => title
+        .includes(`Clip ${(mpvPlayer?.playlistIdx ?? 0) + 1}`))
+        .map(({ title, time }) => ({
+            label: title.slice(0, title.indexOf(' (Clip')),
+            value: time
+        })), [chapters, mpvPlayer?.playlistIdx]);
 
     if (!mpvPlayer) return null;
 
@@ -140,10 +142,10 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                     { (currentPlaylist?.igs.menu.pageCount ?? 0) > 0 && blurayTitle !== 0 &&
                     <FontAwesomeIcon 
                         icon={faCompass} 
-                        onClick={() => {
-                            mpvPlayer.resetMenu();
-                            mpvPlayer.nextMenuCommand();
-                        }}
+                        onClick={() => mpvPlayer.menuPageId < 0
+                            ? mpvPlayer.nextMenuCommand()
+                            : mpvPlayer.resetMenu()
+                        }
                         style={pointerStyle}
                     /> }
                 </div>
@@ -200,7 +202,27 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         container={playerRef.current}
                     >{ chapters.map((chapter, i) => (
                         <MenuItem key={`chapter_${i}`} 
-                            onClick={() => mpvPlayer.module.setChapter(BigInt(i))}>
+                            onClick={() => {
+                                if (player.bluray) {
+                                    player.mpvPlayer?.executeCommand({
+                                        insn: {
+                                            opCnt: 2,
+                                            grp: 0,
+                                            subGrp: 2,
+                                            immOp1: 1,
+                                            immOp2: 1,
+                                            branchOpt: 2,
+                                            cmpOpt: 0,
+                                            setOpt: 0
+                                        },
+                                        dst: player.playlistId,
+                                        src: i
+                                    }, true);
+                                    return;
+                                }
+                                
+                                mpvPlayer.module.setChapter(BigInt(i));
+                            }}>
                             {
                                 currentChapter === i &&
                                 <ListItemIcon>

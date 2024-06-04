@@ -132,7 +132,6 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
     mpv_observe_property(mpv, 0, "playlist-playing-pos", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "playlist-count", MPV_FORMAT_INT64);
 }
 
 void main_loop() {

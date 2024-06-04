@@ -88,6 +88,7 @@ bluray_disc_info_t open_bd_disc(string path) {
     for (uint32_t title_idx = 0; title_idx < num_playlists; title_idx++) {
         const BLURAY_TITLE_INFO *title_info = bd_get_title_info(bd, title_idx, 0);
         playlists[title_idx] = get_playlist_info(title_info, path);
+        printf("Retrieved playlist %u\n", title_idx);
     }
 
     bluray_mobj_objects_t mobj = read_mobj(path + "/BDMV/MovieObject.bdmv");

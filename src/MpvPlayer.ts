@@ -1,6 +1,6 @@
 import libmpvLoader, { BlurayDiscInfo, MobjCmd } from './libmpv.js';
 import _ from 'lodash';
-import { isAudioTrack, isVideoTrack, loadImage } from './utils';
+import { getRandom, isAudioTrack, isVideoTrack, loadImage } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
 import { MainModule } from './libmpv.js';
 
@@ -19,7 +19,6 @@ interface ProxyOptions {
     currentChapter: ProxyHandle<'currentChapter', MpvPlayer['currentChapter']>;
     chapters: ProxyHandle<'chapters', MpvPlayer['chapters']>;
     playlistIdx: ProxyHandle<'playlistIdx', MpvPlayer['playlistIdx']>;
-    playlistCount: ProxyHandle<'playlistCount', MpvPlayer['playlistCount']>;
     isSeeking: ProxyHandle<'isSeeking', MpvPlayer['isSeeking']>;
     uploading: ProxyHandle<'uploading', MpvPlayer['uploading']>;
     title: ProxyHandle<'title', MpvPlayer['title']>;
@@ -46,7 +45,7 @@ interface ProxyOptions {
 const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => [
     'idle', 'isPlaying', 'duration', 'elapsed',
     'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
-    'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters', 'playlistIdx', 'playlistCount',
+    'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters', 'playlistIdx',
     'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount',
     'memory', 'blurayDiscInfo', 'objectIdx', 'firstPlaySupported', 'blurayTitle', 
     'playlistId', 'playItemId', 'menuPictures', 'menuActivated', 'menuSelected', 'menuPageId'
@@ -75,7 +74,6 @@ export default class MpvPlayer {
     audioStream = 1;
     subtitleStream = 1;
     currentChapter = 0;
-    playlistCount = 0;
     playlistIdx = 0;
     
     firstPlaySupported = 0;
@@ -186,9 +184,29 @@ export default class MpvPlayer {
                             case 'duration':
                                 this.proxy.duration = payload.value;
                                 break;
+                            case 'playlist-playing-pos':
+                                if (this.blurayDiscInfo) {
+                                    if (payload.value > 0)
+                                        this.proxy.playlistIdx++;
+                                    
+                                    if (payload.value === '-1')
+                                        this.nextObjectCommand();
+                                }
+                                break;
                             case 'playback-time':
-                                if (!this.isSeeking)
-                                    this.proxy.elapsed = payload.value;
+                                if (this.isSeeking) break;
+
+                                if (this.blurayDiscInfo) {
+                                    const currentPlaylistChapter = (chapter: Chapter) => chapter.title.includes('Clip ' + (this.playlistIdx + 1));
+                                    const firstIdx = this.chapters.findIndex(currentPlaylistChapter)
+                                    const lastIdx = this.chapters.findLastIndex(currentPlaylistChapter);
+                                    const chapterIdx = this.chapters.slice(firstIdx, lastIdx + 1)
+                                        .findIndex(chapter => payload.value <= chapter.time) - 1;
+                                    this.proxy.currentChapter = chapterIdx < 0 ? lastIdx < 0 ? 0 : lastIdx : (firstIdx + chapterIdx);
+                                }
+
+                                this.proxy.elapsed = payload.value;
+                                
                                 break;
                             case 'vid':
                                 this.proxy.videoStream = parseInt(payload.value);
@@ -201,15 +219,6 @@ export default class MpvPlayer {
                                 break;
                             case 'chapter':
                                 this.proxy.currentChapter = parseInt(payload.value);
-                                break;
-                            case 'playlist-count':
-                                this.proxy.playlistCount = parseInt(payload.value);
-                                break;
-                            case 'playlist-playing-pos':
-                                if (this.blurayDiscInfo && payload.value === '-1')
-                                    this.nextObjectCommand();
-                                    
-                                this.proxy.playlistIdx = parseInt(payload.value);
                                 break;
                             case 'shaderCount':
                                 this.proxy.shaderCount = payload.value;
@@ -259,7 +268,8 @@ export default class MpvPlayer {
                         this.proxy.subtitleTracks = subtitleTracks;
                         break;
                     case "chapter-list":
-                        this.proxy.chapters = payload.chapters;
+                        if (!this.blurayDiscInfo)
+                            this.proxy.chapters = payload.chapters;
                         break;
                     default:
                         console.log('Recieved payload:', payload);
@@ -339,27 +349,29 @@ export default class MpvPlayer {
     }
 
     getMemoryValue(addr: number) {
-        if (addr < 0xFF000000)
+        if (addr < 0x80000000)
             return this.memory[addr] ?? 0;
+
+        addr -= 0x80000000;
 
         switch (addr) {
             case 1:
-                return this.proxy.audioStream;
+                return this.audioStream;
             case 2:
-                return this.proxy.subtitleStream;
+                return this.subtitleStream;
             case 4:
-                return this.proxy.blurayTitle > -1 ? this.proxy.blurayTitle : 0;
+                return this.blurayTitle > -1 ? this.blurayTitle : 0;
             case 5:
             case 37:
-                return this.proxy.currentChapter;
+                return this.currentChapter + 1;
             case 6:
-                return this.proxy.playlistId;
+                return this.playlistId;
             case 7:
-                return this.proxy.playItemId;
+                return this.playItemId;
             case 10:
-                return this.proxy.menuSelected;
+                return this.menuSelected;
             case 11:
-                return this.proxy.menuPageId > -1 ? this.proxy.menuPageId : 0;
+                return this.menuPageId > -1 ? this.menuPageId : 0;
             default:
                 console.log('Unknown PSR address:', addr);
                 return 0;
@@ -367,10 +379,12 @@ export default class MpvPlayer {
     }
 
     setMemoryValue(addr: number, val: number) {
-        if (addr < 0xFF000000) {
+        if (addr < 0x80000000) {
             this.memory[addr] = val;
             return;
         }
+
+        addr -= 0x80000000;
 
         switch (addr) {
             case 1:
@@ -384,7 +398,7 @@ export default class MpvPlayer {
                 return;
             case 5:
             case 37:
-                this.proxy.currentChapter = val;
+                this.proxy.currentChapter = val - 1;
                 return;
             case 6:
                 this.proxy.playlistId = val;
@@ -473,6 +487,7 @@ export default class MpvPlayer {
     }
 
     async executeCommand(cmd: MobjCmd, menu = false) {
+        console.log(this.memory, this.menuPageId, this.menuSelected, this.menuIdx);
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
                 switch (cmd.insn.subGrp) {
@@ -527,10 +542,11 @@ export default class MpvPlayer {
                                 const clips = this.blurayDiscInfo?.playlists.get(cmd.dst)?.clips;
                                 if (!clips) throw new Error('Clip IDs not found');
 
+                                const src = cmd.insn.branchOpt === HDMV_INSN_PLAY.INSN_PLAY_PL || cmd.insn.immOp2 
+                                    ? cmd.src : this.getMemoryValue(cmd.src);
+
                                 const vector = new this.module.StringVector();
-                                MpvPlayer.vectorToArray(clips)
-                                    .slice(cmd.insn.branchOpt === HDMV_INSN_PLAY.INSN_PLAY_PL 
-                                        || cmd.insn.immOp2 ? cmd.src : this.getMemoryValue(cmd.src))
+                                MpvPlayer.vectorToArray(clips).slice(src)
                                     .forEach((clip, i) => i 
                                         ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`) 
                                         : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
@@ -538,7 +554,9 @@ export default class MpvPlayer {
                                 this.module.loadFiles(vector);
 
                                 this.proxy.playlistId = cmd.dst;
+                                this.proxy.playlistIdx = src;
                                 this.proxy.objectIdx++;
+                                this.getBlurayChapters();
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0;
@@ -565,6 +583,8 @@ export default class MpvPlayer {
                                 this.module.loadFiles(vector);
 
                                 this.proxy.playlistId = cmd.dst;
+                                this.proxy.playlistIdx = playMark.clipRef;
+                                this.getBlurayChapters();
                                 this.proxy.objectIdx++;
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
@@ -624,6 +644,7 @@ export default class MpvPlayer {
             case HDMV_INSN_GRP.INSN_GROUP_SET:
                 switch (cmd.insn.subGrp) {
                     case HDMV_INSN_GRP_SET.SET_SET:
+                        const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
                         const srcVal = cmd.insn.immOp2 ? cmd.src : this.getMemoryValue(cmd.src);
                         switch (cmd.insn.setOpt) {
                             case HDMV_INSN_SET.INSN_MOVE:
@@ -632,35 +653,36 @@ export default class MpvPlayer {
                                 else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_SWAP:
-                                console.log('INSN_SWAP not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, srcVal);
+                                this.setMemoryValue(cmd.src, dstVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_ADD:
-                                console.log('INSN_ADD not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, dstVal + srcVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_SUB:
-                                console.log('INSN_SUB not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, dstVal - srcVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_MUL:
-                                console.log('INSN_MUL not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, dstVal * srcVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_DIV:
-                                console.log('INSN_DIV not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, dstVal / srcVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_MOD:
-                                console.log('INSN_MOD not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, dstVal % srcVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_RND:
-                                console.log('INSN_RND not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, getRandom(1, srcVal));
+                                return 1;
                             case HDMV_INSN_SET.INSN_AND:
-                                console.log('INSN_AND not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, srcVal & dstVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_OR:
-                                console.log('INSN_OR not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, srcVal | dstVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_XOR:
-                                console.log('INSN_XOR not yet implemented');
-                                return 0;
+                                this.setMemoryValue(cmd.dst, srcVal ^ dstVal);
+                                return 1;
                             case HDMV_INSN_SET.INSN_BITSET:
                                 console.log('INSN_BITSET not yet implemented');
                                 return 0;
@@ -765,6 +787,24 @@ export default class MpvPlayer {
             default:
                 console.log('Unknown instruction group:', cmd.insn.grp.toString(16));
         }
+    }
+
+    getBlurayChapters() {
+        const playlist = this.getCurrentPlaylist();
+        if (!playlist) return;
+
+        const clipTimes = MpvPlayer.vectorToArray(playlist.clips).reduce((timeArr: bigint[], clip) => {
+            const diff = clip.outTime - clip.inTime;
+            timeArr.push(diff + timeArr[timeArr.length - 1]);
+            return timeArr;
+        }, [0n]);
+
+        const chapters = MpvPlayer.vectorToArray(playlist.marks).slice(0, -1).map((mark, i) => ({
+            title: `Chapter ${i + 1} (Clip ${mark.clipRef + 1})`,
+            time: Number((mark.start - clipTimes[mark.clipRef]) / 90000n)
+        }));
+
+        this.proxy.chapters = chapters;
     }
 
     async loadBluray() {

@@ -6,6 +6,7 @@ import PlayerControls from './PlayerControls';
 import { useMediaQuery } from '@mui/material';
 import json2mq from 'json2mq';
 import MpvPlayer from 'libmpv-wasm/build';
+import { Button } from 'libmpv-wasm/build/libmpv';
 
 interface PlayerProps {
     setHideHeader: Dispatch<SetStateAction<boolean>>;
@@ -87,16 +88,31 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         const page = igs.menu.pages.get(player.menuPageId);
         if (!page) return;
 
-        MpvPlayer.vectorToArray(page.bogs).forEach((bog, i) => {
-            const button = MpvPlayer.vectorToArray(bog.buttons)
-                .find(({ buttonId }) => buttonId === bog.defButton);
-            if (!button) return;
+        (async () => {
+            const bogs = MpvPlayer.vectorToArray(page.bogs);
+            for (let i = 0; i < bogs.length; i++) {
+                const bog = bogs[i];
 
-            const pictureId = player.menuSelected === i ? player.menuActivated ? button.activated : button.selected : button.normal;
-            if (!pictureId || pictureId.start === 0xFFFF) return;
+                const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
+                    .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
+                        if (player.mpvPlayer!.buttonState[button.buttonId]) 
+                            obj.enabled = button;
+                        if (button.buttonId === bog.defButton)
+                            obj.defButton = button;
+                        return obj;
+                    }, { enabled: null, defButton: null });
 
-            ctx.drawImage(playlistPictures[pictureId.start][page.palette], button.x, button.y);
-        });
+                const button = enabled || defButton;
+                if (!button) continue;
+    
+                const pictureId = player.menuSelected === i ? player.menuActivated ? button.activated : button.selected : button.normal;
+                if (!pictureId || pictureId.start === 0xFFFF) continue;
+    
+                ctx.drawImage(playlistPictures[pictureId.start][page.palette], button.x, button.y);
+
+                bog.buttons.delete();
+            }
+        })();
     }, [
         playlistPictures,
         player?.bluray, player?.blurayTitle, player?.overlayRef, player?.currentPlaylist, 
@@ -107,32 +123,48 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         const module = player?.mpvPlayer?.module;
         if (!module || !player.title.length) return;
 
-        if (player?.menuPageId > 0) {
+        if (player?.menuPageId > -1) {
             if (!player.mpvPlayer) return;
-
-            const bog = player.mpvPlayer.getCurrentMenu()?.bogs.get(player.menuSelected);
-            if (!bog) return;
             
-            const nav = MpvPlayer.vectorToArray(bog.buttons).find(({ buttonId }) => buttonId === bog.defButton)?.navigation;
+            const page = player.mpvPlayer.getCurrentMenu();
+            if (!page) return;
+
+            const bog = page.bogs.get(player.menuSelected);
+            if (!bog) return;
+
+            const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
+                .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
+                    if (player.mpvPlayer!.buttonState[button.buttonId]) 
+                        obj.enabled = button;
+                    if (button.buttonId === bog.defButton)
+                        obj.defButton = button;
+                    return obj;
+                }, { enabled: null, defButton: null });
+            
+            const nav = (enabled || defButton)?.navigation;
             if (!nav) return;
 
             switch (e.code) {
                 case 'ArrowUp':
                     player.mpvPlayer.setMenuSelected(nav.up);
-                    return;
+                    break;
                 case 'ArrowDown':
                     player.mpvPlayer.setMenuSelected(nav.down);
-                    return;
+                    break;
                 case 'ArrowLeft':
                     player.mpvPlayer.setMenuSelected(nav.left);
-                    return;
+                    break;
                 case 'ArrowRight':
                     player.mpvPlayer.setMenuSelected(nav.right);
-                    return;
+                    break;
                 case 'Enter':
                     player.mpvPlayer.menuActivate();
-                    return;
+                    break;
             }
+
+            bog.buttons.delete();
+
+            player.mpvPlayer.nextMenuCommand();
         } else {
             switch (e.code) {
                 case 'ArrowLeft':

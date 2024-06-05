@@ -2,7 +2,7 @@ import libmpvLoader, { BlurayDiscInfo, MobjCmd } from './libmpv.js';
 import _ from 'lodash';
 import { getRandom, isAudioTrack, isVideoTrack, loadImage } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
-import { MainModule } from './libmpv.js';
+import { MainModule, Button } from './libmpv.js';
 
 type ProxyHandle<K, V> = (this: MpvPlayer, value: V, key: K) => void;
 interface ProxyOptions {
@@ -85,6 +85,7 @@ export default class MpvPlayer {
     menuActivated = false;
     menuSelected = 0;
     menuPageId = -1;
+    buttonState: Record<number, boolean> = {};
 
     videoTracks: VideoTrack[] = [];
     audioTracks: AudioTrack[] = [];
@@ -196,7 +197,7 @@ export default class MpvPlayer {
                             case 'playback-time':
                                 if (this.isSeeking) break;
 
-                                if (this.blurayDiscInfo) {
+                                if (this.blurayDiscInfo && this.blurayTitle > 0) {
                                     const currentPlaylistChapter = (chapter: Chapter) => chapter.title.includes('Clip ' + (this.playlistIdx + 1));
                                     const firstIdx = this.chapters.findIndex(currentPlaylistChapter)
                                     const lastIdx = this.chapters.findLastIndex(currentPlaylistChapter);
@@ -206,7 +207,6 @@ export default class MpvPlayer {
                                 }
 
                                 this.proxy.elapsed = payload.value;
-                                
                                 break;
                             case 'vid':
                                 this.proxy.videoStream = parseInt(payload.value);
@@ -367,7 +367,7 @@ export default class MpvPlayer {
             case 6:
                 return this.playlistId;
             case 7:
-                return this.playItemId;
+                return this.playlistIdx;
             case 10:
                 return this.menuSelected;
             case 11:
@@ -388,10 +388,10 @@ export default class MpvPlayer {
 
         switch (addr) {
             case 1:
-                this.proxy.audioStream = val;
+                this.module.setAudioTrack(BigInt(val));
                 return;
             case 2:
-                this.proxy.subtitleStream = val;
+                this.module.setSubtitleTrack(BigInt(val));
                 return;
             case 4:
                 this.proxy.blurayTitle = val;
@@ -404,7 +404,7 @@ export default class MpvPlayer {
                 this.proxy.playlistId = val;
                 return;
             case 7:
-                this.proxy.playItemId = val;
+                this.proxy.playlistIdx = val;
                 return;
             case 10:
                 this.proxy.menuSelected = val;
@@ -422,13 +422,13 @@ export default class MpvPlayer {
     getCurrentObject = () => this.blurayDiscInfo?.mobjObjects.objects.get(this.blurayTitle + this.firstPlaySupported);
     getCurrentMenu = () => this.getCurrentPlaylist()?.igs.menu.pages.get(this.menuPageId);
 
-    async nextObjectCommand() {
+    async nextObjectCommand(): Promise<void> {
         const command = this.getCurrentObject()?.cmds.get(this.objectIdx);
         if (!command)
             throw new Error('Object command not found');
 
         if (await this.executeCommand(command))
-            this.nextObjectCommand();
+            return this.nextObjectCommand();
     }
 
     setMenuSelected(buttonId: number) {
@@ -440,36 +440,53 @@ export default class MpvPlayer {
         for (let bog_idx = 0; bog_idx < bogs.length; bog_idx++) {
             for (const button of MpvPlayer.vectorToArray(bogs[bog_idx].buttons)) {
                 if (button.buttonId === buttonId) {
-                    this.proxy.menuSelected = buttonId;
+                    this.proxy.menuSelected = bog_idx;
+                    this.menuIdx = 0;
+                    bogs[bog_idx].buttons.delete();
                     return;
                 }
             }
+
+            bogs[bog_idx].buttons.delete();
         }
     }
 
     menuActivate() {
         this.proxy.menuActivated = true;
         this.menuIdx = 0;
-        this.nextMenuCommand();
     }
 
-    async nextMenuCommand() {
+    async nextMenuCommand(): Promise<void> {
         if (this.menuPageId < 0)
-            this.menuPageId = 0;
+            this.proxy.menuPageId = 0;
 
         const bog = this.getCurrentMenu()?.bogs.get(this.menuSelected);
         if (!bog) return;
 
-        const button = MpvPlayer.vectorToArray(bog.buttons)
-            .find(({ buttonId }) => buttonId === bog.defButton);
+        const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
+            .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
+                if (this.buttonState[button.buttonId]) 
+                    obj.enabled = button;
+                if (button.buttonId === bog.defButton)
+                    obj.defButton = button;
+                return obj;
+            }, { enabled: null, defButton: null });
+
+        const button = enabled || defButton;
             
         const command = button?.commands.get(this.menuIdx);
         
         if (!command)
             throw new Error('Menu command not found');
 
+        let next;
         if ((button?.autoAction || this.menuActivated) && await this.executeCommand(command, true))
-            this.nextMenuCommand();
+            next = this.nextMenuCommand();
+
+        button?.commands.delete();
+        bog.buttons.delete();
+
+        return next;
     }
 
     resetMenu() {
@@ -487,7 +504,13 @@ export default class MpvPlayer {
     }
 
     async executeCommand(cmd: MobjCmd, menu = false) {
-        if (menu) console.log(this.memory, this.menuPageId, this.menuSelected, this.menuIdx);
+        if (menu) console.log({
+            memory: this.memory,
+            menuPageId: this.menuPageId, 
+            menuSelected: this.menuSelected, 
+            menuIdx: this.menuIdx, 
+            ...cmd,
+        });
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
                 switch (cmd.insn.subGrp) {
@@ -511,10 +534,12 @@ export default class MpvPlayer {
                     case HDMV_INSN_GRP_BRANCH.BRANCH_JUMP:
                         switch (cmd.insn.branchOpt) {
                             case HDMV_INSN_JUMP.INSN_JUMP_OBJECT:
-                                console.log('INSN_JUMP_OBJECT not yet implemented');
-                                return 0;
                             case HDMV_INSN_JUMP.INSN_JUMP_TITLE:
-                                this.proxy.blurayTitle = cmd.dst;
+                                this.proxy.blurayTitle = (
+                                    cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst)
+                                ) + (
+                                    cmd.insn.branchOpt === HDMV_INSN_JUMP.INSN_JUMP_OBJECT ? this.firstPlaySupported : 0
+                                );
                                 this.proxy.objectIdx = 0;
 
                                 if (menu) {
@@ -731,17 +756,17 @@ export default class MpvPlayer {
                                 else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_AND:
-                                this.setMemoryValue(cmd.dst, srcVal & dstVal);
+                                this.setMemoryValue(cmd.dst, Number(BigInt(srcVal) & BigInt(dstVal)));
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_OR:
-                                this.setMemoryValue(cmd.dst, srcVal | dstVal);
+                                this.setMemoryValue(cmd.dst, Number(BigInt(srcVal) | BigInt(dstVal)));
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
                                 return 1;
                             case HDMV_INSN_SET.INSN_XOR:
-                                this.setMemoryValue(cmd.dst, srcVal ^ dstVal);
+                                this.setMemoryValue(cmd.dst, Number(BigInt(srcVal) ^ BigInt(dstVal)));
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
                                 return 1;
@@ -770,13 +795,17 @@ export default class MpvPlayer {
                                 // const igFlag = (BigInt(cmd.src) & 0x80000000n) >> 31n;
                                 // const angleFlag = (BigInt(cmd.src) & 0x800000n) >> 15n;
                                 
-                                const newAudioStream = Number((BigInt(cmd.dst) & 0xFF0000n) >> 16n);
-                                if (newAudioStream) this.audioStream = cmd.insn.immOp1 
-                                    ? newAudioStream : this.getMemoryValue(newAudioStream);
+                                const newAudioStream = (BigInt(cmd.dst) & 0xFF0000n) >> 16n;
+                                if (newAudioStream) this.module.setAudioTrack(
+                                    cmd.insn.immOp1 ? newAudioStream : BigInt(
+                                        this.getMemoryValue(Number(newAudioStream))
+                                    ));
 
-                                const newSubtitleStream = Number(BigInt(cmd.dst) & 0xFFn);
-                                if (newSubtitleStream) this.subtitleStream = cmd.insn.immOp1 
-                                    ? newSubtitleStream : this.getMemoryValue(newSubtitleStream);
+                                const newSubtitleStream = BigInt(cmd.dst) & 0xFFn;
+                                if (newSubtitleStream) this.module.setSubtitleTrack(
+                                    cmd.insn.immOp1 ? newSubtitleStream : BigInt(
+                                        this.getMemoryValue(Number(newSubtitleStream))
+                                    ));
 
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
@@ -786,6 +815,7 @@ export default class MpvPlayer {
                                 return 0;
                             case HDMV_INSN_SETSYSTEM.INSN_SET_BUTTON_PAGE:
                                 if (!menu) return 0;
+
                                 const dstVal = cmd.insn.immOp1 
                                     ? Number(BigInt(cmd.dst) & 0xFFFn)
                                     : this.getMemoryValue(Number(BigInt(cmd.dst) & 0xFFFFn));
@@ -793,8 +823,7 @@ export default class MpvPlayer {
                                     ? Number(BigInt(cmd.src) & 0xFFFn)
                                     : this.getMemoryValue(Number(BigInt(cmd.src) & 0xFFn));
 
-                                this.menuPageId = srcVal;
-                                this.menuSelected = dstVal;
+                                if (cmd.src > 0) this.menuPageId = srcVal;
 
                                 const page = this.getCurrentMenu();
                                 if (!page) return 0;
@@ -804,18 +833,26 @@ export default class MpvPlayer {
 
                                 await new Promise(resolve => setTimeout(resolve, duration));
 
-                                this.proxy.menuPageId = srcVal;
-                                this.proxy.menuSelected = dstVal;
+                                if (cmd.src > 0) this.proxy.menuPageId = srcVal;
+                                this.setMenuSelected(cmd.dst > 0 ? dstVal : page.defButton);
                                 this.proxy.menuActivated = false;
                                 this.menuIdx = 0;
 
                                 return 1;
-                            case HDMV_INSN_SETSYSTEM.INSN_ENABLE_BUTTON:
-                                console.log('ENABLE_BUTTON not yet implemented');
-                                return 0;
-                            case HDMV_INSN_SETSYSTEM.INSN_DISABLE_BUTTON:
-                                console.log('DISABLE_BUTTON not yet implemented');
-                                return 0;
+                            case HDMV_INSN_SETSYSTEM.INSN_ENABLE_BUTTON: {
+                                const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
+                                this.buttonState[dstVal] = true;
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
+                                return 1;
+                            }
+                            case HDMV_INSN_SETSYSTEM.INSN_DISABLE_BUTTON: {
+                                const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
+                                this.buttonState[dstVal] = false;
+                                if (menu) this.menuIdx++;
+                                else this.proxy.objectIdx++;
+                                return 1;
+                            }
                             case HDMV_INSN_SETSYSTEM.INSN_SET_SEC_STREAM:
                                 console.log('SET_SEC_STREAM not yet implemented');
                                 return 0;

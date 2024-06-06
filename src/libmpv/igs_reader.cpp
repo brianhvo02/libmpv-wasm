@@ -61,7 +61,7 @@ static button_t get_button(uint8_t** segment_ptr) {
     return button;
 }
 
-static bog_t get_bog(uint8_t** segment_ptr) {
+static bog_t get_bog(uint8_t** segment_ptr, vector<button_t>* buttons) {
     bog_t bog {
         .def_button = static_cast<uint16_t>(((*segment_ptr)[0] << 8) | (*segment_ptr)[1]),
         .button_count = (*segment_ptr)[2]
@@ -71,7 +71,8 @@ static bog_t get_bog(uint8_t** segment_ptr) {
 
     for (int button_idx = 0; button_idx < bog.button_count; button_idx++) {
         button_t button = get_button(segment_ptr);
-        bog.buttons.push_back(button);
+        buttons->push_back(button);
+        bog.button_ids.push_back(button.button_id);
     }
 
     return bog;
@@ -166,7 +167,7 @@ static page_t get_page(uint8_t** segment_ptr) {
     (*segment_ptr) += 7;
 
     for (int bog_idx = 0; bog_idx < page.bog_count; bog_idx++) {
-        bog_t bog = get_bog(segment_ptr);
+        bog_t bog = get_bog(segment_ptr, &page.buttons);
         page.bogs.push_back(bog);
     }
 
@@ -528,33 +529,31 @@ igs_t extract_menu(char const *filename) {
     picture_extended_t* decoded;
     
     for (auto page : menu.pages) {
-        for (auto bog : page.bogs) {
-            for (auto button: bog.buttons) {
-                uint16_t picture_ids[6] = { 
-                    button.normal.start, button.normal.stop, 
-                    button.selected.start, button.selected.stop, 
-                    button.activated.start, button.activated.stop 
-                };
+        for (auto button: page.buttons) {
+            uint16_t picture_ids[6] = { 
+                button.normal.start, button.normal.stop, 
+                button.selected.start, button.selected.stop, 
+                button.activated.start, button.activated.stop 
+            };
 
-                for (auto picture_id : picture_ids) {
-                    if (picture_id == 0xFFFF) continue;
+            for (auto picture_id : picture_ids) {
+                if (picture_id == 0xFFFF) continue;
 
-                    if (picture_data.find(to_string(picture_id)) == picture_data.end()) {
-                        picture_t picture = pictures.at(picture_id);
-                        picture_data.insert({ to_string(picture_id), {
-                            .id = picture.id,
-                            .width = picture.width,
-                            .height = picture.height
-                        } });
-                    }
-                    decoded = &picture_data.at(to_string(picture_id));
-
-                    if (decoded->data.find(to_string(page.palette)) != decoded->data.end())
-                        continue;
-
-                    string base64 = get_button_picture_base64(palettes.at(page.palette), pictures.at(picture_id));
-                    decoded->data.insert({ to_string(page.palette), base64 });
+                if (picture_data.find(to_string(picture_id)) == picture_data.end()) {
+                    picture_t picture = pictures.at(picture_id);
+                    picture_data.insert({ to_string(picture_id), {
+                        .id = picture.id,
+                        .width = picture.width,
+                        .height = picture.height
+                    } });
                 }
+                decoded = &picture_data.at(to_string(picture_id));
+
+                if (decoded->data.find(to_string(page.palette)) != decoded->data.end())
+                    continue;
+
+                string base64 = get_button_picture_base64(palettes.at(page.palette), pictures.at(picture_id));
+                decoded->data.insert({ to_string(page.palette), base64 });
             }
         }
     }

@@ -628,6 +628,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("createThumbnail", &create_thumbnail_thread);
     emscripten::function("getFreeMemory", &get_free_memory);
 
+    register_vector<uint16_t>("UInt16Vector");
     register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
     register_vector<bluray_mobj_object_t>("MobjObjectVector");
     register_vector<bluray_playlist_info_t>("BlurayPlaylistVector");
@@ -701,7 +702,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     value_object<bog_t>("Bog")
         .field("defButton", &bog_t::def_button)
         .field("buttonCount", &bog_t::button_count)
-        .field("buttons", &bog_t::buttons);
+        .field("buttonIds", &bog_t::button_ids);
 
     value_object<window_t>("Window")
         .field("id", &window_t::id)
@@ -736,7 +737,8 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("defActivated", &page_t::def_activated)
         .field("palette", &page_t::palette)
         .field("bogCount", &page_t::bog_count)
-        .field("bogs", &page_t::bogs);
+        .field("bogs", &page_t::bogs)
+        .field("buttons", &page_t::buttons);
 
     value_object<menu_t>("Menu")
         .field("width", &menu_t::width)

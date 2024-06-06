@@ -6,7 +6,6 @@ import PlayerControls from './PlayerControls';
 import { useMediaQuery } from '@mui/material';
 import json2mq from 'json2mq';
 import MpvPlayer from 'libmpv-wasm/build';
-import { Button } from 'libmpv-wasm/build/libmpv';
 
 interface PlayerProps {
     setHideHeader: Dispatch<SetStateAction<boolean>>;
@@ -92,32 +91,22 @@ const Player = ({ setHideHeader }: PlayerProps) => {
 
         ctx.canvas.width = playlist.igs.menu.width;
         ctx.canvas.height = playlist.igs.menu.height;
-
-        (async () => {
-            const bogs = MpvPlayer.vectorToArray(page.bogs);
-            for (let i = 0; i < bogs.length; i++) {
-                const bog = bogs[i];
-
-                const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
-                    .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
-                        if (player.mpvPlayer!.buttonState[button.buttonId]) 
-                            obj.enabled = button;
-                        if (button.buttonId === bog.defButton)
-                            obj.defButton = button;
-                        return obj;
-                    }, { enabled: null, defButton: null });
-
-                const button = enabled || defButton;
-                if (!button) continue;
-    
-                const pictureId = player.menuSelected === i ? player.menuActivated ? button.activated : button.selected : button.normal;
-                if (!pictureId || pictureId.start === 0xFFFF) continue;
-    
-                ctx.drawImage(playlistPictures[pictureId.start][page.palette], button.x, button.y);
-            }
+        
+        player.mpvPlayer.buttonState.forEach(id => {
+            const button = page.buttons.get(id);
+            if (!button) return;
+            const state = player.menuSelected === id
+                ? player.menuActivated
+                    ? button.activated
+                    : button.selected
+                : button.normal;
             
-            MpvPlayer.destructPlaylist(playlist);
-        })();
+            if (state.start === 0xFFFF) return;
+            
+            ctx.drawImage(playlistPictures[state.start][page.palette], button.x, button.y);
+        });
+
+        MpvPlayer.destructPlaylist(playlist);
     }, [
         playlistPictures,
         player?.bluray, player?.blurayTitle, player?.overlayRef, player?.playlistId, 
@@ -130,42 +119,26 @@ const Player = ({ setHideHeader }: PlayerProps) => {
 
         if (player?.menuPageId > -1) {
             if (!player.mpvPlayer) return;
-            
+
             const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId);
             if (!playlist) return;
-
-            const page = playlist.igs.menu.pages.get(player.menuPageId);
-            if (!page) return;
-
-            const bog = page.bogs.get(player.menuSelected);
-            if (!bog) return;
-
-            const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
-                .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
-                    if (player.mpvPlayer!.buttonState[button.buttonId]) 
-                        obj.enabled = button;
-                    if (button.buttonId === bog.defButton)
-                        obj.defButton = button;
-                    return obj;
-                }, { enabled: null, defButton: null });
             
-            const nav = (enabled || defButton)?.navigation;
+            const nav = playlist?.igs.menu.pages.get(player.menuPageId)
+                ?.buttons.get(player.menuSelected)?.navigation;
             if (!nav) return;
-
-            const { up, down, left, right } = nav;
 
             switch (e.code) {
                 case 'ArrowUp':
-                    player.mpvPlayer.setMenuSelected(up);
+                    player.mpvPlayer.proxy.menuSelected = nav.up;
                     break;
                 case 'ArrowDown':
-                    player.mpvPlayer.setMenuSelected(down);
+                    player.mpvPlayer.proxy.menuSelected = nav.down;
                     break;
                 case 'ArrowLeft':
-                    player.mpvPlayer.setMenuSelected(left);
+                    player.mpvPlayer.proxy.menuSelected = nav.left;
                     break;
                 case 'ArrowRight':
-                    player.mpvPlayer.setMenuSelected(right);
+                    player.mpvPlayer.proxy.menuSelected = nav.right;
                     break;
                 case 'Enter':
                     player.mpvPlayer.menuActivate();

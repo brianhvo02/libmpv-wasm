@@ -71,7 +71,7 @@ typedef struct button_t {
 typedef struct bog_t {
     uint16_t def_button;
     uint8_t button_count;
-    vector<button_t> buttons;
+    vector<uint16_t> button_ids;
 } bog_t;
 
 typedef struct window_t {
@@ -112,6 +112,7 @@ typedef struct page_t {
     uint8_t palette;
     uint8_t bog_count;
     vector<bog_t> bogs;
+    vector<button_t> buttons;
 } page_t;
 
 typedef struct menu_t {

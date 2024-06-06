@@ -85,7 +85,7 @@ export default class MpvPlayer {
     menuActivated = false;
     menuSelected = 0;
     menuPageId = -1;
-    buttonState: Record<number, boolean> = {};
+    buttonState: number[] = [];
     menuCallAllow = false;
     hasPopupMenu = false;
 
@@ -108,7 +108,7 @@ export default class MpvPlayer {
 
         for (let i = 0; i < vector.size(); i++) {
             const val = vector.get(i);
-            if (!val) continue;
+            if (val === undefined) continue;
             arr.push(val);
         }
             
@@ -445,41 +445,54 @@ export default class MpvPlayer {
         if (ret) return this.nextObjectCommand();
     }
 
-    setMenuSelected(buttonId: number) {
-        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
-        if (!playlist) throw new Error('Playlist not found');
+    // setMenuSelected(buttonId: number) {
+    //     const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+    //     if (!playlist) throw new Error('Playlist not found');
         
-        const menu = playlist.igs.menu.pages.get(this.menuPageId);
-        if (!menu) throw new Error('Menu not found');
+    //     const menu = playlist.igs.menu.pages.get(this.menuPageId);
+    //     if (!menu) throw new Error('Menu not found');
 
-        const bogs = MpvPlayer.vectorToArray(menu.bogs);
-        let breakLoop = false;
-        for (let bog_idx = 0; bog_idx < bogs.length; bog_idx++) {
-            const bog = bogs[bog_idx];
+    //     const bogs = MpvPlayer.vectorToArray(menu.bogs);
+    //     let breakLoop = false;
+    //     for (let bog_idx = 0; bog_idx < bogs.length; bog_idx++) {
+    //         const bog = bogs[bog_idx];
 
-            for (const button of MpvPlayer.vectorToArray(bog.buttons)) {
-                if (button.buttonId === buttonId) {
-                    this.proxy.menuSelected = bog_idx;
-                    this.menuIdx = 0;
-                    breakLoop = true;
-                    break;
-                }
-            }
+    //         for (const button of MpvPlayer.vectorToArray(bog.buttons)) {
+    //             if (button.buttonId === buttonId) {
+    //                 this.proxy.menuSelected = bog_idx;
+    //                 this.menuIdx = 0;
+    //                 breakLoop = true;
+    //                 break;
+    //             }
+    //         }
 
-            if (breakLoop) break;
-        }
+    //         if (breakLoop) break;
+    //     }
 
-        MpvPlayer.destructPlaylist(playlist);
-    }
+    //     MpvPlayer.destructPlaylist(playlist);
+    // }
 
     menuActivate() {
         this.proxy.menuActivated = true;
         this.menuIdx = 0;
     }
 
+    setPageButtons() {
+        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+        if (!playlist) throw new Error('Playlist not found');
+        
+        const menu = playlist.igs.menu.pages.get(this.menuPageId);
+        if (!menu) throw new Error('Menu not found');
+
+        this.buttonState = MpvPlayer.vectorToArray(menu.bogs).map(bog => bog.defButton);
+        MpvPlayer.destructPlaylist(playlist);
+    }
+
     async nextMenuCommand(): Promise<void> {
-        if (this.menuPageId < 0)
+        if (this.menuPageId < 0) {
             this.proxy.menuPageId = 0;
+            this.setPageButtons();
+        }
         
         const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
         if (!playlist) throw new Error('Playlist not found');
@@ -487,19 +500,8 @@ export default class MpvPlayer {
         const menu = playlist.igs.menu.pages.get(this.menuPageId);
         if (!menu) throw new Error('Menu not found');
 
-        const bog = menu.bogs.get(this.menuSelected);
-        if (!bog) throw new Error('Bog not found');
-
-        const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
-            .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
-                if (this.buttonState[button.buttonId]) 
-                    obj.enabled = button;
-                if (button.buttonId === bog.defButton)
-                    obj.defButton = button;
-                return obj;
-            }, { enabled: null, defButton: null });
-
-        const button = enabled || defButton;
+        const button = menu.buttons.get(this.menuSelected);
+        if (!button) throw new Error('Button not found');
             
         const command = button?.commands.get(this.menuIdx);
         
@@ -519,7 +521,7 @@ export default class MpvPlayer {
         this.proxy.menuPageId = -1;
         this.proxy.menuSelected = 0;
         this.menuIdx = 0;
-        this.buttonState = {};
+        this.buttonState = [];
         this.proxy.menuActivated = false;
     }
 
@@ -884,8 +886,11 @@ export default class MpvPlayer {
 
                                 await new Promise(resolve => setTimeout(resolve, duration));
 
-                                if (cmd.src > 0) this.proxy.menuPageId = srcVal;
-                                this.setMenuSelected(cmd.dst > 0 ? dstVal : page.defButton);
+                                if (cmd.src > 0) {
+                                    this.setPageButtons();
+                                    this.proxy.menuPageId = srcVal;
+                                }
+                                this.proxy.menuSelected = cmd.dst > 0 ? dstVal : page.defButton;
                                 this.proxy.menuActivated = false;
                                 this.menuIdx = 0;
 
@@ -895,14 +900,41 @@ export default class MpvPlayer {
                             case HDMV_INSN_SETSYSTEM.INSN_ENABLE_BUTTON: {
                                 const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
                                 
-                                this.buttonState[dstVal] = true;
+                                const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+                                if (!playlist) return 0;
+
+                                const page = playlist.igs.menu.pages.get(this.menuPageId);
+                                if (!page) return 0;
+
+                                const bogIdx = MpvPlayer.vectorToArray(page.bogs)
+                                    .findIndex(bog => MpvPlayer.vectorToArray(bog.buttonIds)
+                                        .includes(dstVal));
+
+                                this.buttonState[bogIdx] = dstVal;
+
+                                MpvPlayer.destructPlaylist(playlist);
+
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
                                 return 1;
                             }
                             case HDMV_INSN_SETSYSTEM.INSN_DISABLE_BUTTON: {
                                 const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
-                                this.buttonState[dstVal] = false;
+                                
+                                const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+                                if (!playlist) return 0;
+
+                                const page = playlist.igs.menu.pages.get(this.menuPageId);
+                                if (!page) return 0;
+
+                                const bogs = MpvPlayer.vectorToArray(page.bogs);
+                                const bogIdx = bogs.findIndex(bog => 
+                                    MpvPlayer.vectorToArray(bog.buttonIds).includes(dstVal));
+
+                                this.buttonState[bogIdx] = bogs[bogIdx].defButton;
+
+                                MpvPlayer.destructPlaylist(playlist);
+
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
                                 return 1;

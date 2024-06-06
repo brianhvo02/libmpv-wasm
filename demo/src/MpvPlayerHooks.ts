@@ -33,6 +33,8 @@ export const useMpvPlayer = () => {
     const [menuPageId, setMenuPageId] = useState(-1);
     const [blurayTitle, setBlurayTitle] = useState(-1);
     const [playlistId, setPlaylistId] = useState(0);
+    const [menuCallAllow, setMenuCallAllow] = useState(false);
+    const [hasPopupMenu, setHasPopupMenu] = useState(false);
 
     const [shaderCount, setShaderCount] = useState<number>(0);
 
@@ -41,9 +43,6 @@ export const useMpvPlayer = () => {
     const playerRef = useRef<HTMLDivElement>(null);
     const ranOnce = useRef(false);
 
-    const currentObject = useMemo(() => blurayTitle > -1 ? mpvPlayer?.getCurrentObject() : null, [mpvPlayer, blurayTitle]);
-    const currentPlaylist = useMemo(() => playlistId >= -1 ? mpvPlayer?.getCurrentPlaylist() : null, [mpvPlayer, playlistId]);
-
     const contextValue = useMemo(() => ({
         mpvPlayer, canvasRef, overlayRef, playerRef,
         title, idle, elapsed, duration, isPlaying, volume,
@@ -51,9 +50,8 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        blurayTitle,
+        blurayTitle, menuCallAllow, hasPopupMenu,
         uploading, fileEnd, shaderCount,
-        currentObject, currentPlaylist,
         playlistId, menuPageId, menuPictures,
         menuActivated, setMenuActivated,
         menuSelected, setMenuSelected,
@@ -66,9 +64,8 @@ export const useMpvPlayer = () => {
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
         currentChapter, chapters,
-        blurayTitle,
+        blurayTitle, menuCallAllow, hasPopupMenu,
         uploading, fileEnd, shaderCount,
-        currentObject, currentPlaylist,
         playlistId, menuPageId, menuPictures,
         menuActivated, setMenuActivated,
         menuSelected, setMenuSelected,
@@ -106,6 +103,8 @@ export const useMpvPlayer = () => {
             menuSelected: setMenuSelected,
             menuActivated: setMenuActivated,
             menuPictures: setMenuPictures,
+            menuCallAllow: setMenuCallAllow,
+            hasPopupMenu: setHasPopupMenu,
         }).then(setMpvPlayer);
 
         ranOnce.current = true;

@@ -1,4 +1,4 @@
-import libmpvLoader, { BlurayDiscInfo, MobjCmd } from './libmpv.js';
+import libmpvLoader, { BlurayDiscInfo, BlurayPlaylistInfo, MobjCmd } from './libmpv.js';
 import _ from 'lodash';
 import { getRandom, isAudioTrack, isVideoTrack, loadImage } from './utils';
 import { showOpenFilePicker } from 'native-file-system-adapter';
@@ -18,7 +18,6 @@ interface ProxyOptions {
     subtitleTracks: ProxyHandle<'subtitleTracks', MpvPlayer['subtitleTracks']>;
     currentChapter: ProxyHandle<'currentChapter', MpvPlayer['currentChapter']>;
     chapters: ProxyHandle<'chapters', MpvPlayer['chapters']>;
-    playlistIdx: ProxyHandle<'playlistIdx', MpvPlayer['playlistIdx']>;
     isSeeking: ProxyHandle<'isSeeking', MpvPlayer['isSeeking']>;
     uploading: ProxyHandle<'uploading', MpvPlayer['uploading']>;
     title: ProxyHandle<'title', MpvPlayer['title']>;
@@ -35,20 +34,22 @@ interface ProxyOptions {
     blurayTitle: ProxyHandle<'blurayTitle', MpvPlayer['blurayTitle']>;
     playlistId: ProxyHandle<'playlistId', MpvPlayer['playlistId']>;
     playItemId: ProxyHandle<'playItemId', MpvPlayer['playItemId']>;
+    menuCallAllow: ProxyHandle<'menuCallAllow', MpvPlayer['menuCallAllow']>;
 
     menuPictures: ProxyHandle<'menuPictures', MpvPlayer['menuPictures']>;
     menuActivated: ProxyHandle<'menuActivated', MpvPlayer['menuActivated']>;
     menuSelected: ProxyHandle<'menuSelected', MpvPlayer['menuSelected']>;
     menuPageId: ProxyHandle<'menuPageId', MpvPlayer['menuPageId']>;
+    hasPopupMenu: ProxyHandle<'hasPopupMenu', MpvPlayer['hasPopupMenu']>;
 }
 
 const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => [
     'idle', 'isPlaying', 'duration', 'elapsed',
     'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
-    'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters', 'playlistIdx',
+    'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters',
     'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount',
-    'memory', 'blurayDiscInfo', 'objectIdx', 'firstPlaySupported', 'blurayTitle', 
-    'playlistId', 'playItemId', 'menuPictures', 'menuActivated', 'menuSelected', 'menuPageId'
+    'memory', 'blurayDiscInfo', 'objectIdx', 'firstPlaySupported', 'blurayTitle', 'menuCallAllow',
+    'playlistId', 'playItemId', 'menuPictures', 'menuActivated', 'menuSelected', 'menuPageId', 'hasPopupMenu'
 ].includes(typeof prop === 'symbol' ? prop.toString() : prop);
 
 export default class MpvPlayer {
@@ -74,7 +75,6 @@ export default class MpvPlayer {
     audioStream = 1;
     subtitleStream = 1;
     currentChapter = 0;
-    playlistIdx = 0;
     
     firstPlaySupported = 0;
     blurayTitle = -1;
@@ -86,6 +86,8 @@ export default class MpvPlayer {
     menuSelected = 0;
     menuPageId = -1;
     buttonState: Record<number, boolean> = {};
+    menuCallAllow = false;
+    hasPopupMenu = false;
 
     videoTracks: VideoTrack[] = [];
     audioTracks: AudioTrack[] = [];
@@ -157,6 +159,14 @@ export default class MpvPlayer {
 
         return new this(module, options);
     }
+    
+    static destructPlaylist(playlist: BlurayPlaylistInfo) {
+        playlist.clips.delete();
+        playlist.marks.delete();
+        playlist.igs.palettes.delete();
+        playlist.igs.pictures.delete();
+        playlist.igs.menu.pages.delete();
+    }
 
     setupMpvWorker() {
         this.mpvWorker = this.module.PThread.runningWorkers.concat(this.module.PThread.unusedWorkers)[0];
@@ -188,7 +198,7 @@ export default class MpvPlayer {
                             case 'playlist-playing-pos':
                                 if (this.blurayDiscInfo) {
                                     if (payload.value > 0)
-                                        this.proxy.playlistIdx++;
+                                        this.proxy.playItemId++;
                                     
                                     if (payload.value === '-1')
                                         this.nextObjectCommand();
@@ -198,7 +208,7 @@ export default class MpvPlayer {
                                 if (this.isSeeking) break;
 
                                 if (this.blurayDiscInfo && this.blurayTitle > 0) {
-                                    const currentPlaylistChapter = (chapter: Chapter) => chapter.title.includes('Clip ' + (this.playlistIdx + 1));
+                                    const currentPlaylistChapter = (chapter: Chapter) => chapter.title.includes('Clip ' + (this.playItemId + 1));
                                     const firstIdx = this.chapters.findIndex(currentPlaylistChapter)
                                     const lastIdx = this.chapters.findLastIndex(currentPlaylistChapter);
                                     const chapterIdx = this.chapters.slice(firstIdx, lastIdx + 1)
@@ -367,7 +377,7 @@ export default class MpvPlayer {
             case 6:
                 return this.playlistId;
             case 7:
-                return this.playlistIdx;
+                return this.playItemId;
             case 10:
                 return this.menuSelected;
             case 11:
@@ -404,7 +414,7 @@ export default class MpvPlayer {
                 this.proxy.playlistId = val;
                 return;
             case 7:
-                this.proxy.playlistIdx = val;
+                this.proxy.playItemId = val;
                 return;
             case 10:
                 this.proxy.menuSelected = val;
@@ -418,37 +428,48 @@ export default class MpvPlayer {
         }
     }
 
-    getCurrentPlaylist = () => this.blurayDiscInfo?.playlists.get(this.playlistId);
-    getCurrentObject = () => this.blurayDiscInfo?.mobjObjects.objects.get(this.blurayTitle + this.firstPlaySupported);
-    getCurrentMenu = () => this.getCurrentPlaylist()?.igs.menu.pages.get(this.menuPageId);
-
     async nextObjectCommand(): Promise<void> {
-        const command = this.getCurrentObject()?.cmds.get(this.objectIdx);
-        if (!command)
-            throw new Error('Object command not found');
+        const object = this.blurayDiscInfo?.mobjObjects.objects?.get(this.blurayTitle + this.firstPlaySupported);
+        if (!object) throw new Error('Object not found');
 
-        if (await this.executeCommand(command))
-            return this.nextObjectCommand();
+        if (this.menuCallAllow !== !object.menuCallMask)
+            this.proxy.menuCallAllow = !object.menuCallMask;
+
+        const command = object.cmds.get(this.objectIdx);
+        if (!command) throw new Error('Object command not found');
+
+        const ret = await this.executeCommand(command);
+        
+        object.cmds.delete();
+        
+        if (ret) return this.nextObjectCommand();
     }
 
     setMenuSelected(buttonId: number) {
-        const bogsVector = this.getCurrentMenu()?.bogs;
-        if (!bogsVector) return;
+        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+        if (!playlist) throw new Error('Playlist not found');
+        
+        const menu = playlist.igs.menu.pages.get(this.menuPageId);
+        if (!menu) throw new Error('Menu not found');
 
-        const bogs = MpvPlayer.vectorToArray(bogsVector);
-
+        const bogs = MpvPlayer.vectorToArray(menu.bogs);
+        let breakLoop = false;
         for (let bog_idx = 0; bog_idx < bogs.length; bog_idx++) {
-            for (const button of MpvPlayer.vectorToArray(bogs[bog_idx].buttons)) {
+            const bog = bogs[bog_idx];
+
+            for (const button of MpvPlayer.vectorToArray(bog.buttons)) {
                 if (button.buttonId === buttonId) {
                     this.proxy.menuSelected = bog_idx;
                     this.menuIdx = 0;
-                    bogs[bog_idx].buttons.delete();
-                    return;
+                    breakLoop = true;
+                    break;
                 }
             }
 
-            bogs[bog_idx].buttons.delete();
+            if (breakLoop) break;
         }
+
+        MpvPlayer.destructPlaylist(playlist);
     }
 
     menuActivate() {
@@ -459,9 +480,15 @@ export default class MpvPlayer {
     async nextMenuCommand(): Promise<void> {
         if (this.menuPageId < 0)
             this.proxy.menuPageId = 0;
+        
+        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+        if (!playlist) throw new Error('Playlist not found');
+        
+        const menu = playlist.igs.menu.pages.get(this.menuPageId);
+        if (!menu) throw new Error('Menu not found');
 
-        const bog = this.getCurrentMenu()?.bogs.get(this.menuSelected);
-        if (!bog) return;
+        const bog = menu.bogs.get(this.menuSelected);
+        if (!bog) throw new Error('Bog not found');
 
         const { enabled, defButton } = MpvPlayer.vectorToArray(bog.buttons)
             .reduce((obj: { enabled: Button | null, defButton: Button | null }, button) => {
@@ -483,8 +510,7 @@ export default class MpvPlayer {
         if ((button?.autoAction || this.menuActivated) && await this.executeCommand(command, true))
             next = this.nextMenuCommand();
 
-        button?.commands.delete();
-        bog.buttons.delete();
+        MpvPlayer.destructPlaylist(playlist);
 
         return next;
     }
@@ -493,6 +519,7 @@ export default class MpvPlayer {
         this.proxy.menuPageId = -1;
         this.proxy.menuSelected = 0;
         this.menuIdx = 0;
+        this.buttonState = {};
         this.proxy.menuActivated = false;
     }
 
@@ -506,10 +533,13 @@ export default class MpvPlayer {
     async executeCommand(cmd: MobjCmd, menu = false) {
         if (menu) console.log({
             memory: this.memory,
+            playlistId: this.playlistId,
             menuPageId: this.menuPageId, 
             menuSelected: this.menuSelected, 
             menuIdx: this.menuIdx, 
-            ...cmd,
+            insn: cmd.insn,
+            dst: cmd.dst.toString(16).padStart(8, '0'),
+            src: cmd.src.toString(16).padStart(8, '0')
         });
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
@@ -540,6 +570,7 @@ export default class MpvPlayer {
                                 ) + (
                                     cmd.insn.branchOpt === HDMV_INSN_JUMP.INSN_JUMP_OBJECT ? this.firstPlaySupported : 0
                                 );
+
                                 this.proxy.objectIdx = 0;
 
                                 if (menu) {
@@ -566,22 +597,26 @@ export default class MpvPlayer {
                         switch (cmd.insn.branchOpt) {
                             case HDMV_INSN_PLAY.INSN_PLAY_PL:
                             case HDMV_INSN_PLAY.INSN_PLAY_PL_PI: {
-                                const clips = this.blurayDiscInfo?.playlists.get(dstVal)?.clips;
-                                if (!clips) throw new Error('Clip IDs not found');
-
+                                const playlist = this.blurayDiscInfo?.playlists.get(dstVal);
+                                if (!playlist) throw new Error('Playlist not found');
+                                
                                 const src = cmd.insn.branchOpt === HDMV_INSN_PLAY.INSN_PLAY_PL ? cmd.src : srcVal;
 
                                 const vector = new this.module.StringVector();
-                                MpvPlayer.vectorToArray(clips).slice(src)
+                                MpvPlayer.vectorToArray(playlist.clips).slice(src)
                                     .forEach((clip, i) => i 
                                         ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`) 
                                         : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
 
                                 this.module.loadFiles(vector);
 
+                                vector.delete();
+                                MpvPlayer.destructPlaylist(playlist);
+
                                 this.proxy.playlistId = dstVal;
-                                this.proxy.playlistIdx = src;
+                                this.proxy.playItemId = src;
                                 this.proxy.objectIdx++;
+                                this.proxy.hasPopupMenu = Boolean(playlist.igs.menu.pageCount && this.blurayTitle);
                                 this.getBlurayChapters();
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
@@ -609,8 +644,13 @@ export default class MpvPlayer {
                                 this.module.loadFiles(vector);
 
                                 this.proxy.playlistId = dstVal;
-                                this.proxy.playlistIdx = playMark.clipRef;
+                                this.proxy.playItemId = playMark.clipRef;
+                                this.proxy.hasPopupMenu = Boolean(playlist.igs.menu.pageCount && this.blurayTitle);
                                 this.getBlurayChapters();
+
+                                vector.delete();
+                                MpvPlayer.destructPlaylist(playlist);
+
                                 this.proxy.objectIdx++;
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
@@ -620,26 +660,30 @@ export default class MpvPlayer {
                                 console.log('INSN_TERMINATE_PL not yet implemented');
                                 return 0;
                             case HDMV_INSN_PLAY.INSN_LINK_PI: {
-                                const clips = this.getCurrentPlaylist()?.clips;
-                                if (!clips) throw new Error('Clip IDs not found');
+                                const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+                                if (!playlist) throw new Error('Playlist not found');
 
                                 const vector = new this.module.StringVector();
-                                MpvPlayer.vectorToArray(clips).slice(dstVal)
+                                MpvPlayer.vectorToArray(playlist.clips).slice(dstVal)
                                     .forEach((clip, i) => i 
                                         ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`) 
                                         : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
 
                                 this.module.loadFiles(vector);
 
-                                this.proxy.playlistIdx = dstVal;
-                                this.proxy.objectIdx++;
+                                vector.delete();
+                                MpvPlayer.destructPlaylist(playlist);
+
+                                this.proxy.playItemId = dstVal;
+                                this.proxy.hasPopupMenu = Boolean(playlist.igs.menu.pageCount && this.blurayTitle);
                                 this.getBlurayChapters();
+                                this.proxy.objectIdx++;
                                 if (menu) this.resetMenu();
                                 else if (this.blurayTitle === 0) this.nextMenuCommand();
                                 return 0;
                             }
                             case HDMV_INSN_PLAY.INSN_LINK_MK:
-                                const playlist = this.getCurrentPlaylist();
+                                const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
                                 if (!playlist) throw new Error('Playlist not found');
 
                                 const playMark = playlist.marks.get(dstVal);
@@ -659,7 +703,11 @@ export default class MpvPlayer {
 
                                 this.module.loadFiles(vector);
 
-                                this.proxy.playlistIdx = playMark.clipRef;
+                                vector.delete();
+                                MpvPlayer.destructPlaylist(playlist);
+
+                                this.proxy.playItemId = playMark.clipRef;
+                                this.proxy.hasPopupMenu = Boolean(playlist.igs.menu.pageCount && this.blurayTitle);
                                 this.getBlurayChapters();
                                 this.proxy.objectIdx++;
                                 if (menu) this.resetMenu();
@@ -825,7 +873,10 @@ export default class MpvPlayer {
 
                                 if (cmd.src > 0) this.menuPageId = srcVal;
 
-                                const page = this.getCurrentMenu();
+                                const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
+                                if (!playlist) return 0;
+
+                                const page = playlist.igs.menu.pages.get(this.menuPageId);
                                 if (!page) return 0;
                                 
                                 const duration = MpvPlayer.vectorToArray(page.inEffects.effects)
@@ -838,9 +889,12 @@ export default class MpvPlayer {
                                 this.proxy.menuActivated = false;
                                 this.menuIdx = 0;
 
+                                MpvPlayer.destructPlaylist(playlist);
+
                                 return 1;
                             case HDMV_INSN_SETSYSTEM.INSN_ENABLE_BUTTON: {
                                 const dstVal = cmd.insn.immOp1 ? cmd.dst : this.getMemoryValue(cmd.dst);
+                                
                                 this.buttonState[dstVal] = true;
                                 if (menu) this.menuIdx++;
                                 else this.proxy.objectIdx++;
@@ -889,7 +943,7 @@ export default class MpvPlayer {
     }
 
     getBlurayChapters() {
-        const playlist = this.getCurrentPlaylist();
+        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId);
         if (!playlist) return;
 
         const clipTimes = MpvPlayer.vectorToArray(playlist.clips).reduce((timeArr: bigint[], clip) => {
@@ -904,6 +958,8 @@ export default class MpvPlayer {
         }));
 
         this.proxy.chapters = chapters;
+
+        MpvPlayer.destructPlaylist(playlist);
     }
 
     async loadBluray() {

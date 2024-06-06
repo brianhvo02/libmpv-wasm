@@ -82,11 +82,16 @@ const Player = ({ setHideHeader }: PlayerProps) => {
 
         if (!player?.mpvPlayer || player.blurayTitle < 0 || player.menuPageId < 0 || !playlistPictures) return;
 
-        const igs = player.currentPlaylist?.igs;
-        if (!igs) return;
+        // console.log(player.mpvPlayer.module.getFreeMemory());
+
+        const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId);
+        if (!playlist) throw new Error('Playlist not found');
         
-        const page = igs.menu.pages.get(player.menuPageId);
-        if (!page) return;
+        const page = playlist.igs.menu.pages.get(player.menuPageId);
+        if (!page) throw new Error('Menu not found');
+
+        ctx.canvas.width = playlist.igs.menu.width;
+        ctx.canvas.height = playlist.igs.menu.height;
 
         (async () => {
             const bogs = MpvPlayer.vectorToArray(page.bogs);
@@ -109,13 +114,13 @@ const Player = ({ setHideHeader }: PlayerProps) => {
                 if (!pictureId || pictureId.start === 0xFFFF) continue;
     
                 ctx.drawImage(playlistPictures[pictureId.start][page.palette], button.x, button.y);
-
-                bog.buttons.delete();
             }
+            
+            MpvPlayer.destructPlaylist(playlist);
         })();
     }, [
         playlistPictures,
-        player?.bluray, player?.blurayTitle, player?.overlayRef, player?.currentPlaylist, 
+        player?.bluray, player?.blurayTitle, player?.overlayRef, player?.playlistId, 
         player?.menuPageId, player?.mpvPlayer, player?.menuSelected, player?.menuActivated
     ]);
 
@@ -126,7 +131,10 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         if (player?.menuPageId > -1) {
             if (!player.mpvPlayer) return;
             
-            const page = player.mpvPlayer.getCurrentMenu();
+            const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId);
+            if (!playlist) return;
+
+            const page = playlist.igs.menu.pages.get(player.menuPageId);
             if (!page) return;
 
             const bog = page.bogs.get(player.menuSelected);
@@ -144,26 +152,27 @@ const Player = ({ setHideHeader }: PlayerProps) => {
             const nav = (enabled || defButton)?.navigation;
             if (!nav) return;
 
+            const { up, down, left, right } = nav;
+
             switch (e.code) {
                 case 'ArrowUp':
-                    player.mpvPlayer.setMenuSelected(nav.up);
+                    player.mpvPlayer.setMenuSelected(up);
                     break;
                 case 'ArrowDown':
-                    player.mpvPlayer.setMenuSelected(nav.down);
+                    player.mpvPlayer.setMenuSelected(down);
                     break;
                 case 'ArrowLeft':
-                    player.mpvPlayer.setMenuSelected(nav.left);
+                    player.mpvPlayer.setMenuSelected(left);
                     break;
                 case 'ArrowRight':
-                    player.mpvPlayer.setMenuSelected(nav.right);
+                    player.mpvPlayer.setMenuSelected(right);
                     break;
                 case 'Enter':
                     player.mpvPlayer.menuActivate();
                     break;
             }
 
-            bog.buttons.delete();
-
+            MpvPlayer.destructPlaylist(playlist);
             player.mpvPlayer.nextMenuCommand();
         } else {
             switch (e.code) {
@@ -178,7 +187,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
                     break;
             }
         }
-    }, [player?.menuPageId, player?.menuSelected, player?.mpvPlayer, player?.title]);
+    }, [player?.menuPageId, player?.menuSelected, player?.mpvPlayer, player?.playlistId, player?.title.length]);
 
     useEffect(() => {
         document.addEventListener('keydown', onKeyDown);
@@ -194,9 +203,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
             onDoubleClick={toggleFullscreen}
         >
             <canvas id='canvas' ref={player?.canvasRef} style={sizeStyle}/>
-            <canvas ref={player?.overlayRef} style={sizeStyle}
-                width={player?.currentPlaylist?.igs.menu.width} 
-                height={player?.currentPlaylist?.igs.menu.height} />
+            <canvas ref={player?.overlayRef} style={sizeStyle} />
             <div className="canvas-blocker" 
                 onClick={e => setWillTogglePlay(e.detail === 1)} />
             { !!player?.title.length &&

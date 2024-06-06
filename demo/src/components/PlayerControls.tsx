@@ -28,8 +28,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
         audioStream, audioTracks,
         currentChapter, chapters,
         subtitleStream, subtitleTracks,
-        blurayTitle,
-        currentObject, currentPlaylist
+        menuCallAllow, hasPopupMenu,
     } = player;
 
     const volumeRef = useRef<SVGSVGElement>(null);
@@ -78,11 +77,11 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     }, [mouseIsMoving]);
 
     const marks = useMemo(() => chapters?.filter(({ title }) => title
-        .includes(`Clip ${(mpvPlayer?.playlistIdx ?? 0) + 1}`))
+        .includes(`Clip ${(mpvPlayer?.playItemId ?? 0) + 1}`))
         .map(({ title, time }) => ({
             label: title.slice(0, title.indexOf(' (Clip')),
             value: time
-        })), [chapters, mpvPlayer?.playlistIdx]);
+        })), [chapters, mpvPlayer?.playItemId]);
 
     if (!mpvPlayer) return null;
 
@@ -133,13 +132,13 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         onClick={() => mpvPlayer.module.skipForward()}
                         style={pointerStyle}
                     />
-                    { currentObject?.menuCallMask === 0 &&
+                    { menuCallAllow &&
                     <FontAwesomeIcon 
                         icon={faBars} 
                         onClick={() => mpvPlayer.openTopMenu()}
                         style={pointerStyle}
                     /> }
-                    { (currentPlaylist?.igs.menu.pageCount ?? 0) > 0 && blurayTitle !== 0 &&
+                    { hasPopupMenu &&
                     <FontAwesomeIcon 
                         icon={faCompass} 
                         onClick={() => mpvPlayer.menuPageId < 0

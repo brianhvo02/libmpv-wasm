@@ -74,7 +74,7 @@ static bluray_playlist_info_t get_playlist_info(const BLURAY_TITLE_INFO *title, 
             title->clips[clip_idx].out_time
         };
 
-    return { clips, marks, get_menu(title->playlist, path) };
+    return { title->playlist, clips, marks, get_menu(title->playlist, path) };
 }
 
 typedef struct bd_pl_thread_args_t {
@@ -88,14 +88,18 @@ pthread_mutex_t bd_lock;
 void* get_playlist_thread(void* args) {
     bd_pl_thread_args_t *bd_pl_args = (bd_pl_thread_args_t *)args;
 
-    printf("Getting info for playlist %u at %s\n", bd_pl_args->title_idx, bd_pl_args->path.c_str());
-    pthread_mutex_lock(&bd_lock); 
+    pthread_mutex_lock(&bd_lock);
     const BLURAY_TITLE_INFO *title_info = bd_get_title_info(bd, bd_pl_args->title_idx, 0);
     pthread_mutex_unlock(&bd_lock); 
+    printf("Title %u has playlist %u\n", bd_pl_args->title_idx, title_info->playlist);
     bd_pl_args->playlist = get_playlist_info(title_info, bd_pl_args->path);
-    printf("Retrieved playlist %u\n", bd_pl_args->title_idx);
+    printf("Retrieved playlist %u\n", title_info->playlist);
 
     return NULL;
+}
+
+bool comparePlaylists(bluray_playlist_info_t p1, bluray_playlist_info_t p2) {
+    return p1.playlist_id < p2.playlist_id;
 }
 
 bluray_disc_info_t open_bd_disc(string path) {
@@ -124,6 +128,8 @@ bluray_disc_info_t open_bd_disc(string path) {
         pthread_join(threads[title_idx], NULL);
         playlists[title_idx] = thread_args[title_idx].playlist;
     }
+
+    sort(playlists.begin(), playlists.end(), comparePlaylists);
 
     pthread_mutex_destroy(&bd_lock); 
 

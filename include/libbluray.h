@@ -30,6 +30,7 @@ typedef struct bluray_clip_info_t {
 } bluray_clip_info_t;
 
 typedef struct bluray_playlist_info_t {
+    uint32_t playlist_id;
     vector<bluray_clip_info_t> clips;
     vector<BLURAY_TITLE_MARK> marks;
     igs_t igs;

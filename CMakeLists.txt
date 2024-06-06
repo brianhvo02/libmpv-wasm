@@ -32,7 +32,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal --preload-file ../shaders@/shaders --emit-tsd libmpv.d.ts \
 -sUSE_PTHREADS -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=20 -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=2GB -sOFFSCREENCANVAS_SUPPORT \
--sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread'] -sEXPORT_NAME='libmpvLoader'")
+-sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread','HEAP8'] -sEXPORT_NAME='libmpvLoader'")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")
 
 add_definitions(

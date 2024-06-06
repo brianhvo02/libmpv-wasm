@@ -24,6 +24,24 @@
 
 #include "thumbnail.h"
 #include "libbluray.h"
+#include <unistd.h>
+
+struct s_mallinfo {
+	int arena;    /* non-mmapped space allocated from system */
+	int ordblks;  /* number of free chunks */
+	int smblks;   /* always 0 */
+	int hblks;    /* always 0 */
+	int hblkhd;   /* space in mmapped regions */
+	int usmblks;  /* maximum total allocated space */
+	int fsmblks;  /* always 0 */
+	int uordblks; /* total allocated space */
+	int fordblks; /* total free space */
+	int keepcost; /* releasable (via malloc_trim) space */
+};
+
+extern "C" {
+	extern s_mallinfo mallinfo();
+}
 
 using namespace emscripten;
 using namespace std;
@@ -571,6 +589,17 @@ void die(const char *msg) {
     exit(1);
 }
 
+unsigned int get_total_memory() {
+	return EM_ASM_INT(return HEAP8.length);
+}
+
+unsigned int get_free_memory() {
+	s_mallinfo i = mallinfo();
+	unsigned int totalMemory = get_total_memory();
+	unsigned int dynamicTop = (unsigned int)sbrk(0);
+	return totalMemory - dynamicTop + i.fordblks;
+}
+
 EMSCRIPTEN_BINDINGS(libmpv) {
     register_vector<string>("StringVector");
 
@@ -597,6 +626,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("getShaderCount", &get_shader_count);
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
     emscripten::function("createThumbnail", &create_thumbnail_thread);
+    emscripten::function("getFreeMemory", &get_free_memory);
 
     register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
     register_vector<bluray_mobj_object_t>("MobjObjectVector");

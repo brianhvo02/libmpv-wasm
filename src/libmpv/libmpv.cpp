@@ -149,7 +149,7 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
-    mpv_observe_property(mpv, 0, "playlist-playing-pos", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "playlist-current-pos", MPV_FORMAT_INT64);
 }
 
 void main_loop() {
@@ -294,7 +294,8 @@ void main_loop() {
                             break;
                         }
                         default:
-                            printf("event: %s\n", mpv_event_name(mp_event->event_id));
+                            break;
+                        //     printf("event: %s\n", mpv_event_name(mp_event->event_id));
                     }
                 }
             }
@@ -354,7 +355,7 @@ void* load_fs(void *args) {
 }
 
 void load_file(string path, string options) {
-    printf("loading %s with options %s\n", path.c_str(), options.c_str());
+    // printf("loading %s with options %s\n", path.c_str(), options.c_str());
     
     if (!filesystem::exists(path)) {
         printf("file does not exist\n");
@@ -366,7 +367,7 @@ void load_file(string path, string options) {
 }
 
 void load_files(vector<string> paths) {
-    printf("loading %lu paths\n", paths.size());
+    // printf("loading %lu paths\n", paths.size());
 
     for (auto path : paths) {
         if (!filesystem::exists(path))
@@ -513,7 +514,7 @@ void match_window_screen_size() {
 
     SDL_SetWindowSize(window, width, new_height);
 
-    printf("video: %lldx%lld -> screen: %dx%d = canvas: %dx%d\n", video_width, video_height, width, height, width, new_height);
+    // printf("video: %lldx%lld -> screen: %dx%d = canvas: %dx%d\n", video_width, video_height, width, height, width, new_height);
 }
 
 void create_mpv_map_obj(mpv_node_list *map) {
@@ -629,10 +630,9 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("getFreeMemory", &get_free_memory);
 
     register_vector<uint16_t>("UInt16Vector");
+    register_vector<uint32_t>("UInt32Vector");
     register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
     register_vector<bluray_mobj_object_t>("MobjObjectVector");
-    register_vector<bluray_playlist_info_t>("BlurayPlaylistVector");
-    register_vector<button_t>("ButtonVector");
     register_vector<effect_object_t>("EffectObjectVector");
     register_vector<effect_t>("EffectVector");
     register_vector<bog_t>("BogVector");
@@ -645,6 +645,8 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     register_map<string, window_t>("WindowMap");
     register_map<string, string>("StringMap");
     register_map<string, picture_extended_t>("PictureMap");
+    register_map<string, button_t>("ButtonMap");
+    register_map<string, bluray_playlist_info_t>("BlurayPlaylistMap");
 
     value_object<bluray_hdmv_insn_t>("HdmvInsn")
         .field("opCnt", &bluray_hdmv_insn_t::op_cnt)
@@ -786,6 +788,9 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("discName", &bluray_disc_info_t::disc_name)
         .field("numPlaylists", &bluray_disc_info_t::num_playlists)
         .field("firstPlaySupported", &bluray_disc_info_t::first_play_supported)
+        .field("firstPlayIdx", &bluray_disc_info_t::first_play_idx)
+        .field("topMenuSupported", &bluray_disc_info_t::top_menu_supported)
+        .field("titleMap", &bluray_disc_info_t::title_map)
         .field("playlists", &bluray_disc_info_t::playlists)
         .field("mobjObjects", &bluray_disc_info_t::mobj);
 

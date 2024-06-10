@@ -91,26 +91,20 @@ void* get_playlist_thread(void* args) {
     pthread_mutex_lock(&bd_lock);
     const BLURAY_TITLE_INFO *title_info = bd_get_title_info(bd, bd_pl_args->title_idx, 0);
     pthread_mutex_unlock(&bd_lock); 
-    printf("Title %u has playlist %u\n", bd_pl_args->title_idx, title_info->playlist);
+    // printf("Title %u has playlist %u\n", bd_pl_args->title_idx, title_info->playlist);
     bd_pl_args->playlist = get_playlist_info(title_info, bd_pl_args->path);
     printf("Retrieved playlist %u\n", title_info->playlist);
 
     return NULL;
 }
 
-bool comparePlaylists(bluray_playlist_info_t p1, bluray_playlist_info_t p2) {
-    return p1.playlist_id < p2.playlist_id;
-}
-
 bluray_disc_info_t open_bd_disc(string path) {
     int success = bd_open_disc(bd, path.c_str(), NULL);
     assert(success == 1);
 
-    printf("Reading disc at %s\n", path.c_str());
-
     const BLURAY_DISC_INFO *info = bd_get_disc_info(bd);
     uint32_t num_playlists = bd_get_titles(bd, 0, 0);
-    vector<bluray_playlist_info_t> playlists(num_playlists);
+    map<string, bluray_playlist_info_t> playlists;
 
     printf("%u playlists detected\n", num_playlists);
 
@@ -126,20 +120,29 @@ bluray_disc_info_t open_bd_disc(string path) {
 
     for (uint32_t title_idx = 0; title_idx < num_playlists; title_idx++) {
         pthread_join(threads[title_idx], NULL);
-        playlists[title_idx] = thread_args[title_idx].playlist;
+        bluray_playlist_info_t playlist = thread_args[title_idx].playlist;
+        playlists.insert({ to_string(playlist.playlist_id), playlist });
     }
-
-    sort(playlists.begin(), playlists.end(), comparePlaylists);
 
     pthread_mutex_destroy(&bd_lock); 
 
     bluray_mobj_objects_t mobj = read_mobj(path + "/BDMV/MovieObject.bdmv");
-    
+
+    uint32_t top_menu_idx = info->top_menu == NULL ? 0xFFFFFFFF : info->top_menu->id_ref;
+
+    vector<uint32_t> title_map;
+    title_map.push_back(top_menu_idx);
+    for (uint32_t title_idx = 1; title_idx <= info->num_titles; title_idx++) 
+        title_map.push_back(info->titles[title_idx]->id_ref);
+
     return bluray_disc_info_t {
         info->disc_name,
         num_playlists,
         playlists,
         info->first_play_supported,
+        info->first_play->id_ref,
+        info->top_menu_supported,
+        title_map,
         mobj
     };
 }

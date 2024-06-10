@@ -83,7 +83,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
 
         // console.log(player.mpvPlayer.module.getFreeMemory());
 
-        const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId);
+        const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId.toString());
         if (!playlist) throw new Error('Playlist not found');
         
         const page = playlist.igs.menu.pages.get(player.menuPageId);
@@ -93,8 +93,9 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         ctx.canvas.height = playlist.igs.menu.height;
         
         player.mpvPlayer.buttonState.forEach(id => {
-            const button = page.buttons.get(id);
+            const button = page.buttons.get(id.toString());
             if (!button) return;
+
             const state = player.menuSelected === id
                 ? player.menuActivated
                     ? button.activated
@@ -120,11 +121,11 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         if (player?.menuPageId > -1) {
             if (!player.mpvPlayer) return;
 
-            const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId);
+            const playlist = player.mpvPlayer.blurayDiscInfo?.playlists.get(player.playlistId.toString());
             if (!playlist) return;
             
             const nav = playlist?.igs.menu.pages.get(player.menuPageId)
-                ?.buttons.get(player.menuSelected)?.navigation;
+                ?.buttons.get(player.menuSelected.toString())?.navigation;
             if (!nav) return;
 
             switch (e.code) {

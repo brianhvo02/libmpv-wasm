@@ -2,7 +2,7 @@ import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from
 import { Player } from '../MpvPlayerHooks';
 import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBackwardStep, faBars, faBookmark, faCompass, faExpand, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBars, faBookmark, faCompass, faExpand, faFilm, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
 
@@ -77,7 +77,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     }, [mouseIsMoving]);
 
     const marks = useMemo(() => chapters?.filter(({ title }) => title
-        .includes(`Clip ${(mpvPlayer?.playItemId ?? 0) + 1}`))
+        .includes(`(Clip ${(mpvPlayer?.playItemId ?? 0) + 1})`))
         .map(({ title, time }) => ({
             label: title.slice(0, title.indexOf(' (Clip')),
             value: time
@@ -132,10 +132,25 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         onClick={() => mpvPlayer.module.skipForward()}
                         style={pointerStyle}
                     />
-                    { menuCallAllow &&
+                    { (menuCallAllow || (player.blurayTitle === 0 && player.mpvPlayer?.resumeInfo)) &&
                     <FontAwesomeIcon 
-                        icon={faBars} 
-                        onClick={() => mpvPlayer.openTopMenu()}
+                        icon={player.blurayTitle === 0 ? faFilm : faBars} 
+                        onClick={() => player.blurayTitle === 0
+                            ? mpvPlayer.executeCommand({
+                                insn: {
+                                    opCnt: 0,
+                                    grp: 0,
+                                    subGrp: 1,
+                                    immOp1: 0,
+                                    immOp2: 0,
+                                    branchOpt: 4,
+                                    cmpOpt: 0,
+                                    setOpt: 0
+                                },
+                                dst: 0,
+                                src: 0
+                            }, true)
+                            : mpvPlayer.openTopMenu() }
                         style={pointerStyle}
                     /> }
                     { hasPopupMenu &&

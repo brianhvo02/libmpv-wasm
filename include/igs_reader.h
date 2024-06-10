@@ -112,7 +112,7 @@ typedef struct page_t {
     uint8_t palette;
     uint8_t bog_count;
     vector<bog_t> bogs;
-    vector<button_t> buttons;
+    map<string, button_t> buttons;
 } page_t;
 
 typedef struct menu_t {

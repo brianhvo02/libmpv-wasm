@@ -27,7 +27,7 @@ export const useMpvPlayer = () => {
     const [uploading, setUploading] = useState('');
     const [fileEnd, setFileEnd] = useState(false);
     const [bluray, setBluray] = useState<BlurayDiscInfo | null>(null);
-    const [menuPictures, setMenuPictures] = useState<Record<string, Record<string, HTMLImageElement>>[]>([]);
+    const [menuPictures, setMenuPictures] = useState<Record<string, Record<string, Record<string, HTMLImageElement>>>>({});
     const [menuActivated, setMenuActivated] = useState(false);
     const [menuSelected, setMenuSelected] = useState(0);
     const [menuPageId, setMenuPageId] = useState(-1);

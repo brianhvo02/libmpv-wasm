@@ -61,7 +61,7 @@ static button_t get_button(uint8_t** segment_ptr) {
     return button;
 }
 
-static bog_t get_bog(uint8_t** segment_ptr, vector<button_t>* buttons) {
+static bog_t get_bog(uint8_t** segment_ptr, map<string, button_t>* buttons) {
     bog_t bog {
         .def_button = static_cast<uint16_t>(((*segment_ptr)[0] << 8) | (*segment_ptr)[1]),
         .button_count = (*segment_ptr)[2]
@@ -71,7 +71,7 @@ static bog_t get_bog(uint8_t** segment_ptr, vector<button_t>* buttons) {
 
     for (int button_idx = 0; button_idx < bog.button_count; button_idx++) {
         button_t button = get_button(segment_ptr);
-        buttons->push_back(button);
+        buttons->insert({ to_string(button.button_id), button });
         bog.button_ids.push_back(button.button_id);
     }
 
@@ -529,7 +529,7 @@ igs_t extract_menu(char const *filename) {
     picture_extended_t* decoded;
     
     for (auto page : menu.pages) {
-        for (auto button: page.buttons) {
+        for (auto const& [button_id, button] : page.buttons) {
             uint16_t picture_ids[6] = { 
                 button.normal.start, button.normal.stop, 
                 button.selected.start, button.selected.stop, 

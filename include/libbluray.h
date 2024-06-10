@@ -39,8 +39,11 @@ typedef struct bluray_playlist_info_t {
 typedef struct bluray_disc_info_t {
     string disc_name;
     uint32_t num_playlists;
-    vector<bluray_playlist_info_t> playlists;
+    map<string, bluray_playlist_info_t> playlists;
     uint8_t first_play_supported;
+    uint32_t first_play_idx;
+    uint8_t top_menu_supported;
+    vector<uint32_t> title_map;
     bluray_mobj_objects_t mobj;
 } bluray_disc_info_t;
 

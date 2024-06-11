@@ -108,22 +108,24 @@ bluray_disc_info_t open_bd_disc(string path) {
 
     printf("%u playlists detected\n", num_playlists);
 
-    bd_pl_thread_args_t thread_args[num_playlists];
-    pthread_t threads[num_playlists];
+    bd_pl_thread_args_t thread_args[MAX_THREADS];
+    pthread_t threads[MAX_THREADS];
 
     pthread_mutex_init(&bd_lock, NULL);
 
-    for (uint32_t title_idx = 0; title_idx < num_playlists; title_idx++) {
-        thread_args[title_idx] = { title_idx, path };
-        pthread_create(&(threads[title_idx]), NULL, &get_playlist_thread, &(thread_args[title_idx]));
-    }
+    for (uint32_t group_idx = 0; group_idx <= num_playlists / MAX_THREADS; group_idx++) {
+        for (uint32_t thread_idx = 0; thread_idx < min((uint32_t)MAX_THREADS, num_playlists - (group_idx * MAX_THREADS)); thread_idx++) {
+            thread_args[thread_idx] = { group_idx * MAX_THREADS + thread_idx, path };
+            pthread_create(&(threads[thread_idx]), NULL, &get_playlist_thread, &(thread_args[thread_idx]));
+        }
 
-    for (uint32_t title_idx = 0; title_idx < num_playlists; title_idx++) {
-        pthread_join(threads[title_idx], NULL);
-        bluray_playlist_info_t playlist = thread_args[title_idx].playlist;
-        playlists.insert({ to_string(playlist.playlist_id), playlist });
+        for (uint32_t thread_idx = 0; thread_idx < min((uint32_t)MAX_THREADS, num_playlists - (group_idx * MAX_THREADS)); thread_idx++) {
+            pthread_join(threads[thread_idx], NULL);
+            bluray_playlist_info_t playlist = thread_args[thread_idx].playlist;
+            playlists.insert({ to_string(playlist.playlist_id), playlist });
+        }
     }
-
+    
     pthread_mutex_destroy(&bd_lock); 
 
     bluray_mobj_objects_t mobj = read_mobj(path + "/BDMV/MovieObject.bdmv");

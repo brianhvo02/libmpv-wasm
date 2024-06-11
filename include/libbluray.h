@@ -9,6 +9,8 @@
 
 using namespace std;
 
+const uint8_t MAX_THREADS = 15;
+
 typedef struct bluray_mobj_object_t {
     uint8_t resume_intention_flag;
     uint8_t menu_call_mask;

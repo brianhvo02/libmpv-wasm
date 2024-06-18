@@ -111,7 +111,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         mpvPlayer.module.setPlaybackTime(val);
                     }}
                     marks={marks && marks.length > 1 ? marks : false}
-                    disabled={!mouseIsMoving || mpvPlayer.blurayTitle === 0}
+                    disabled={!mouseIsMoving || (!!mpvPlayer.blurayDiscInfo && mpvPlayer.blurayTitle === 0)}
                 />
                 <span>{formatTime(duration)}</span>
             </div>
@@ -285,7 +285,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         </>
                     }
                     {
-                        audioTracks && audioTracks.length > 1 &&
+                        // audioTracks && audioTracks.length > 1 &&
                         <>
                             <FontAwesomeIcon 
                                 icon={faMusic}
@@ -302,17 +302,15 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                                 onClose={() => setAudioMenu(false)}
                                 container={playerRef.current}
                             >
-                                {audioTracks.map((track) => (
-                                <MenuItem key={`audio_${Number(track.id)}`} 
+                                {audioTracks.map((track, i) => (
+                                <MenuItem key={`audio_${i}`} 
                                     onClick={() => mpvPlayer.module.setAudioTrack(track.id)}>
-                                    {
-                                        audioStream === Number(track.id) &&
-                                        <ListItemIcon>
-                                            <Check />
-                                        </ListItemIcon>
-                                    }
+                                    { audioStream === Number(track.id) &&
+                                    <ListItemIcon>
+                                        <Check />
+                                    </ListItemIcon> }
                                     <ListItemText inset={audioStream !== Number(track.id)}>
-                                        {track.title ?? 'Audio Track ' + Number(track.id)} ({track.lang ?? 'und'})
+                                        {track.title ?? 'Audio Track ' + (i + 1)} ({track.lang ?? 'und'})
                                     </ListItemText>
                                 </MenuItem>
                                 ))}
@@ -347,8 +345,8 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                             </ListItemText>
                         </MenuItem>
                         {
-                            subtitleTracks.map(track => (
-                                <MenuItem key={`subs_${Number(track.id)}`} 
+                            subtitleTracks.map((track, i) => (
+                                <MenuItem key={`subs_${i}`} 
                                     onClick={() => mpvPlayer.module.setSubtitleTrack(track.id)}>
                                     {
                                         subtitleStream === Number(track.id) &&
@@ -357,7 +355,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                                         </ListItemIcon>
                                     }
                                     <ListItemText inset={subtitleStream !== Number(track.id)}>
-                                        {track.title ?? 'Subtitle Track ' + Number(track.id)} ({track.lang ?? 'und'})
+                                        {track.title ?? 'Subtitle Track ' + (i + 1)} ({track.lang ?? 'und'})
                                     </ListItemText>
                                 </MenuItem>
                             ))

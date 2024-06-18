@@ -6,7 +6,6 @@
 #include <mpv/render_gl.h>
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_events.h>
 
@@ -14,6 +13,7 @@
 #include <emscripten/bind.h>
 #include <emscripten/threading.h>
 #include <emscripten/wasmfs.h>
+#include <emscripten/proxying.h>
 
 #include <filesystem>
 #include <iostream>
@@ -24,24 +24,6 @@
 
 #include "thumbnail.h"
 #include "libbluray.h"
-#include <unistd.h>
-
-struct s_mallinfo {
-	int arena;    /* non-mmapped space allocated from system */
-	int ordblks;  /* number of free chunks */
-	int smblks;   /* always 0 */
-	int hblks;    /* always 0 */
-	int hblkhd;   /* space in mmapped regions */
-	int usmblks;  /* maximum total allocated space */
-	int fsmblks;  /* always 0 */
-	int uordblks; /* total allocated space */
-	int fordblks; /* total free space */
-	int keepcost; /* releasable (via malloc_trim) space */
-};
-
-extern "C" {
-	extern s_mallinfo mallinfo();
-}
 
 using namespace emscripten;
 using namespace std;
@@ -54,12 +36,12 @@ int64_t video_height = 1080;
 SDL_Window *window;
 mpv_handle *mpv;
 mpv_render_context *mpv_gl;
-pthread_t fs_thread;
-pthread_t mpv_thread;
+pthread_t main_thread;
+pthread_t side_thread;
+bluray_disc_info_t disc_info;
+em_proxying_queue* main_queue = em_proxying_queue_create();
 
-void init_mpv();
 void main_loop();
-void* load_fs(void *args);
 void create_mpv_map_obj(mpv_node_list *map);
 int get_shader_count();
 void get_tracks();
@@ -67,33 +49,23 @@ void get_chapters();
 static void *get_proc_address_mpv(void *fn_ctx, const char *name);
 static void on_mpv_events(void *ctx);
 static void on_mpv_render_update(void *ctx);
-intptr_t get_fs_thread();
-intptr_t get_mpv_thread();
+intptr_t get_main_thread();
 void die(const char *msg);
 void quit();
 
-int main(int argc, char const *argv[]) {
-    mpv_thread = pthread_self();
-    pthread_create(&fs_thread, NULL, load_fs, NULL);
+void func() {}
 
-    backend_t opfs = wasmfs_create_opfs_backend();
-    int err = wasmfs_create_directory("/opfs", 0777, opfs);
-    assert(err == 0);
-
-    backend_t extfs = wasmfs_create_externalfs_backend();
-    err = wasmfs_create_directory("/extfs", 0777, extfs);
-    assert(err == 0);
-
-    init_mpv();
-    emscripten_set_main_loop(main_loop, 0, 1);
-
-    return 0;
+void* loop(void* args) {
+    emscripten_set_main_loop(func, 0, 1);
+    return NULL;
 }
 
-void init_mpv() {
+int main(int argc, char const *argv[]) {
+    main_thread = pthread_self();
+    pthread_create(&side_thread, NULL, loop, NULL);
+
     mpv = mpv_create();
-    if (!mpv)
-        die("context init failed");
+    if (!mpv) die("context init failed");
 
     mpv_set_property_string(mpv, "vo", "libmpv");
 
@@ -102,23 +74,19 @@ void init_mpv() {
 
     // mpv_request_log_messages(mpv, "debug");
 
-    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "no");
-
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
         die("SDL init failed");
     
     emscripten_get_screen_size(&width, &height);
     window = SDL_CreateWindow("mpv Media Player", width, height, SDL_WINDOW_OPENGL);
 
-    if (!window)
-        die("failed to create SDL window");
+    if (!window) die("failed to create SDL window");
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     SDL_GLContext glcontext = SDL_GL_CreateContext(window);
-    if (!glcontext)
-        die("failed to create SDL GL context");
+    if (!glcontext) die("failed to create SDL GL context");
 
     mpv_opengl_init_params init_params = { get_proc_address_mpv };
     int advanced_control = 1;
@@ -150,6 +118,10 @@ void init_mpv() {
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
     mpv_observe_property(mpv, 0, "playlist-current-pos", MPV_FORMAT_INT64);
+
+    emscripten_set_main_loop(main_loop, 0, 1);
+
+    return 0;
 }
 
 void main_loop() {
@@ -313,57 +285,77 @@ void main_loop() {
     }
 }
 
-void* load_fs(void *args) {
-    EM_ASM(
-        onmessage = async e => {
-            let dirHandle;
-            const segments = e.data.path.split('/');
-            for (const segment of segments) {
-                if (!segment.length) {
-                    dirHandle = await navigator.storage.getDirectory();
-                    continue;
-                }
-                
-                dirHandle = await dirHandle.getDirectoryHandle(segment, { create: true });
-            }
+typedef struct {
+    string path;
+    string options;
+} load_file_args_t;
 
-            for (const file of e.data.files) {
-                postMessage(JSON.stringify({ type: 'upload', filename: file.name }));
-                
-                const fileHandle = await dirHandle.getFileHandle(file.name, { create: true });
+void load_file_proxy(void* args) {
+    load_file_args_t* load_file_args = (load_file_args_t*)args;
 
-                if (fileHandle.createWritable) {
-                    const writable = await fileHandle.createWritable();
-                    console.log('Writing', file.name);
-                    await writable.write(file);
-                    await writable.close();
-                } else {
-                    const accessHandle = await fileHandle.createSyncAccessHandle();
-                    const buf = await file.arrayBuffer();
-                    accessHandle.write(buf);
-                    accessHandle.close();
-                }
-
-                Module.createThumbnail('/opfs' + e.data.path + '/' + file.name);
-            }
-
-            postMessage(JSON.stringify({ type: 'upload-complete' }));
+    filesystem::path path = load_file_args->path;
+    string root_name = *next(path.begin());
+    string root_path = "/" + root_name;
+    
+    if (!filesystem::is_directory(root_path)) {
+        backend_t backend = wasmfs_create_externalfs_backend(root_name.c_str());
+        int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
+        if (err) {
+            fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
+            return;
         }
-    );
-
-    return NULL;
-}
-
-void load_file(string path, string options) {
-    // printf("loading %s with options %s\n", path.c_str(), options.c_str());
+    }
+    
+    // printf("loading %s with options %s\n", path.c_str(), load_file_args->options.c_str());
     
     if (!filesystem::exists(path)) {
-        printf("file does not exist\n");
+        fprintf(stderr, "file does not exist\n");
         return;
     }
 
-    const char * cmd[] = {"loadfile", path.c_str(), "replace", "0", options.c_str(), NULL};
+    const char * cmd[] = {"loadfile", path.c_str(), "replace", "0", load_file_args->options.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
+}
+
+void load_file(string path, string options) {
+    load_file_args_t* args_ptr = (load_file_args_t*)malloc(sizeof(load_file_args_t));
+    args_ptr->path = path;
+    args_ptr->options = options;
+    emscripten_proxy_async(main_queue, main_thread, load_file_proxy, args_ptr);
+}
+
+void open_disc_proxy(void* args) {
+    filesystem::path path = *(string*)args;
+    string root_name = *next(path.begin());
+    string root_path = "/" + root_name;
+    
+    if (!filesystem::is_directory(root_path)) {
+        printf("mounting directory at %s\n", root_path.c_str());
+        backend_t backend = wasmfs_create_externalfs_backend(root_name.c_str());
+        int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
+        if (err) {
+            fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
+            return;
+        }
+    }
+    
+    if (!filesystem::is_directory(path)) {
+        fprintf(stderr, "%s is not a directory\n", path.c_str());
+        return;
+    }
+
+    disc_info = open_bd_disc(path);
+}
+
+uint32_t open_disc(string path) {
+    string* path_ptr = (string*)malloc(sizeof(string));
+    *path_ptr = path;
+
+    return (uint32_t)emscripten_proxy_promise(main_queue, side_thread, open_disc_proxy, path_ptr);
+}
+
+bluray_disc_info_t get_disc_info() {
+    return disc_info;
 }
 
 void load_files(vector<string> paths) {
@@ -469,12 +461,8 @@ int get_shader_count() {
     return fileCount - 1;
 }
 
-intptr_t get_fs_thread() {
-    return (intptr_t)fs_thread;
-}
-
-intptr_t get_mpv_thread() {
-    return (intptr_t)mpv_thread;
+intptr_t get_main_thread() {
+    return (intptr_t)main_thread;
 }
 
 static void *get_proc_address_mpv(void *fn_ctx, const char *name) {
@@ -590,21 +578,9 @@ void die(const char *msg) {
     exit(1);
 }
 
-unsigned int get_total_memory() {
-	return EM_ASM_INT(return HEAP8.length);
-}
-
-unsigned int get_free_memory() {
-	s_mallinfo i = mallinfo();
-	unsigned int totalMemory = get_total_memory();
-	unsigned int dynamicTop = (unsigned int)sbrk(0);
-	return totalMemory - dynamicTop + i.fordblks;
-}
-
 EMSCRIPTEN_BINDINGS(libmpv) {
     register_vector<string>("StringVector");
 
-    emscripten::function("mpvInit", &init_mpv);
     emscripten::function("loadFile", &load_file);
     emscripten::function("loadFiles", &load_files);
     // emscripten::function("loadUrl", &load_url);
@@ -620,14 +596,12 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("setChapter", &set_chapter);
     emscripten::function("skipForward", &skip_forward);
     emscripten::function("skipBackward", &skip_backward);
-    emscripten::function("getFsThread", &get_fs_thread);
-    emscripten::function("getMpvThread", &get_mpv_thread);
+    emscripten::function("getMpvThread", &get_main_thread);
     emscripten::function("addShaders", &add_shaders);
     emscripten::function("clearShaders", &clear_shaders);
     emscripten::function("getShaderCount", &get_shader_count);
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
     emscripten::function("createThumbnail", &create_thumbnail_thread);
-    emscripten::function("getFreeMemory", &get_free_memory);
 
     register_vector<uint16_t>("UInt16Vector");
     register_vector<uint32_t>("UInt32Vector");
@@ -794,5 +768,6 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("playlists", &bluray_disc_info_t::playlists)
         .field("mobjObjects", &bluray_disc_info_t::mobj);
 
-    emscripten::function("bdOpen", &open_bd_disc);
+    emscripten::function("bdOpen", &open_disc);
+    emscripten::function("bdGetInfo", &get_disc_info);
 }

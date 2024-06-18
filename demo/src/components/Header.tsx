@@ -192,9 +192,6 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
                     ) }
                 </ul>
             </Popover> */}
-            { <div className='navbar' onClick={() => player.mpvPlayer?.loadBluray()}>
-                <span>Play Disc</span>
-            </div> }
             { player.shaderCount > 0 && <>
             <div className='navbar' onClick={() => player.mpvPlayer?.module.addShaders()}>
                 <span>Add Shaders</span>

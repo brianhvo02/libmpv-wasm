@@ -28,6 +28,7 @@ interface ProxyOptions {
     memory: ProxyHandle<'memory', MpvPlayer['memory']>;
 
     blurayDiscInfo: ProxyHandle<'blurayDiscInfo', MpvPlayer['blurayDiscInfo']>;
+    blurayDiscPath: ProxyHandle<'blurayDiscPath', MpvPlayer['blurayDiscPath']>;
     objectIdx: ProxyHandle<'objectIdx', MpvPlayer['objectIdx']>;
 
     blurayTitle: ProxyHandle<'blurayTitle', MpvPlayer['blurayTitle']>;
@@ -47,7 +48,7 @@ const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => 
     'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
     'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters',
     'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount',
-    'memory', 'blurayDiscInfo', 'objectIdx', 'blurayTitle', 'menuCallAllow',
+    'memory', 'blurayDiscInfo', 'blurayDiscPath', 'objectIdx', 'blurayTitle', 'menuCallAllow',
     'playlistId', 'playItemId', 'menuPictures', 'menuActivated', 'menuSelected', 'menuPageId', 'hasPopupMenu'
 ].includes(typeof prop === 'symbol' ? prop.toString() : prop);
 
@@ -67,11 +68,13 @@ export default class MpvPlayer {
     memory: Record<number, number> = {};
 
     blurayDiscInfo: BlurayDiscInfo | null = null;
+    blurayDiscPath = '/';
     objectIdx = 0;
     menuIdx = 0;
 
     videoStream = 1;
     audioStream = 1;
+    nextAudioTrack: number | null = null;
     currentChapter = 0;
     subtitleStream = 1;
     subtitleDispFlag = false;
@@ -129,13 +132,6 @@ export default class MpvPlayer {
                     || ( prop !== 'title' && typeof newValue !== typeof target[prop] )
                 ) return false;
 
-                if (prop === 'idle' && target.idle != newValue) {
-                    if (!target.fsWorker)
-                        target.setupFsWorker();
-
-                    target.getFiles();
-                }
-
                 // @ts-ignore
                 target[prop] = newValue;
 
@@ -170,8 +166,17 @@ export default class MpvPlayer {
         playlist.igs.menu.pages.delete();
     }
 
-    setupMpvWorker() {
-        this.mpvWorker = this.module.PThread.runningWorkers.concat(this.module.PThread.unusedWorkers)[0];
+    async setupMpvWorker() {
+        const mainThread = await new Promise<number>(resolve => {
+            const interval = setInterval(() => {
+                const threadId = this.module.getMpvThread();
+                if (!threadId) return;
+                clearInterval(interval);
+                resolve(threadId);
+            }, 100);
+        });
+        const pthreads: Record<number, Worker> = this.module.PThread.pthreads;
+        this.mpvWorker = pthreads[mainThread];
         if (!this.mpvWorker)
             throw new Error('mpv worker not found');
 
@@ -256,6 +261,8 @@ export default class MpvPlayer {
                             .map((track: any) => _.mapKeys(track, (__, k) => _.camelCase(k)))
                             .map((track: any) => _.mapValues(track, (v, k) => bigIntKeys.includes(k) ? BigInt(v) : v ));
                             
+                        const audioTrackSrcIds: bigint[] = [];
+
                         const { videoTracks, audioTracks, subtitleTracks } = tracks.reduce(
                             (map: { 
                                 videoTracks: VideoTrack[], 
@@ -264,9 +271,10 @@ export default class MpvPlayer {
                             }, track) => {
                                 if (isVideoTrack(track))
                                     map.videoTracks.push(track);
-                                else if (isAudioTrack(track))
+                                else if (isAudioTrack(track) && !audioTrackSrcIds.includes(track.srcId)) {
                                     map.audioTracks.push(track);
-                                else
+                                    audioTrackSrcIds.push(track.srcId);
+                                } else
                                     map.subtitleTracks.push(track);
 
                                 return map;
@@ -276,6 +284,11 @@ export default class MpvPlayer {
                                 subtitleTracks: []
                             }
                         );
+                        
+                        if (this.blurayDiscInfo && this.nextAudioTrack && audioTracks[this.nextAudioTrack]) {
+                            this.module.setAudioTrack(audioTracks[this.nextAudioTrack].id);
+                            this.nextAudioTrack = null;
+                        }
                         
                         this.proxy.videoTracks = videoTracks;
                         this.proxy.audioTracks = audioTracks;
@@ -297,43 +310,8 @@ export default class MpvPlayer {
         this.mpvWorker.addEventListener('message', listener);
     }
 
-    setupFsWorker() {
-        const threadId = this.proxy.module.getFsThread();
-        this.fsWorker = (this.proxy.module.PThread.pthreads as Record<string, Worker>)[threadId.toString()];
-
-        const listener = (e: MessageEvent) => {
-            const payload = JSON.parse(e.data);
-            switch (payload.type) {
-                case 'upload':
-                    console.log('Uploading', payload.filename);
-                    this.proxy.getFiles();
-                    this.proxy.uploading = payload.filename;
-                    break;
-                case 'upload-complete':
-                    console.log('Upload completed');
-                    this.proxy.getFiles();
-                    this.proxy.uploading = '';
-                    break;
-                default:
-                    console.log('Recieved payload:', payload);
-            }
-        }
-
-        this.fsWorker.addEventListener('message', listener);
-    }
-
-    getFiles = async () => navigator.storage.getDirectory()
-        .then(opfsRoot => Array.fromAsync(opfsRoot.entries()))
-        .then(entries => {
-            const files = entries
-                .filter(([, handle]) => handle.kind === 'file')
-                .map(([name]) => name);
-
-            if (files.length !== this.files.length)
-                this.proxy.files = files;
-
-            return files
-        });
+    getDirectories = (): Promise<FileSystemDirectoryHandle[]> => 
+        this.module.ExternalFS.getAllStoredHandles();
 
     async uploadFiles(path: string, files?: File[]) {
         if (!this.fsWorker)
@@ -350,16 +328,15 @@ export default class MpvPlayer {
         this.fsWorker.postMessage({ path, files: pickedFiles });
     }
 
-    async mountFolder() {
+    async mountFolder(): Promise<Record<string, FileSystemDirectoryHandle>> {
         const directoryHandle = await showDirectoryPicker()
             .catch(e => console.error(e));
         
         if (!directoryHandle)
-            return;
+            return {};
 
-        this.proxy.module.PThread.runningWorkers[3].postMessage(directoryHandle);
-
-        return directoryHandle;
+        const name: string = await this.module.ExternalFS.addDirectory(directoryHandle)
+        return { [name]: directoryHandle };
     }
 
     getMemoryValue(addr: number) {
@@ -370,11 +347,14 @@ export default class MpvPlayer {
 
         switch (addr) {
             case 1:
-                return this.audioStream;
+                return this.nextAudioTrack 
+                    ? this.nextAudioTrack + 1
+                    : this.audioStream;
             case 2:
                 const dispFlag = this.subtitleDispFlag ? 0x80000000 : 0;
                 return Number(BigInt(this.subtitleStream) | BigInt(dispFlag));
             case 4:
+            case 36:
                 return this.blurayTitle;
             case 5:
             case 37:
@@ -403,12 +383,13 @@ export default class MpvPlayer {
 
         switch (addr) {
             case 1:
-                this.module.setAudioTrack(BigInt(val));
+                this.module.setAudioTrack(this.audioTracks[val - 1].id);
                 return;
             case 2:
                 this.module.setSubtitleTrack(BigInt(val));
                 return;
             case 4:
+            case 36:
                 this.proxy.blurayTitle = val;
                 return;
             case 5:
@@ -557,23 +538,23 @@ export default class MpvPlayer {
     }
 
     async executeCommand(cmd: MobjCmd, menu = false) {
-        // console.log(menu ? {
-        //     memory: { ...this.memory },
-        //     playlistId: this.playlistId,
-        //     menuPageId: this.menuPageId, 
-        //     menuSelected: this.menuSelected, 
-        //     menuIdx: this.menuIdx, 
-        //     insn: cmd.insn,
-        //     dst: cmd.dst.toString(16).padStart(8, '0'),
-        //     src: cmd.src.toString(16).padStart(8, '0')
-        // } : {
-        //     memory: { ...this.memory },
-        //     blurayTitle: this.blurayTitle,
-        //     objectIdx: this.objectIdx, 
-        //     insn: cmd.insn,
-        //     dst: cmd.dst.toString(16).padStart(8, '0'),
-        //     src: cmd.src.toString(16).padStart(8, '0')
-        // });
+        console.log(menu ? {
+            memory: { ...this.memory },
+            playlistId: this.playlistId,
+            menuPageId: this.menuPageId, 
+            menuSelected: this.menuSelected, 
+            menuIdx: this.menuIdx, 
+            insn: cmd.insn,
+            dst: cmd.dst.toString(16).padStart(8, '0'),
+            src: cmd.src.toString(16).padStart(8, '0')
+        } : {
+            memory: { ...this.memory },
+            blurayTitle: this.blurayTitle,
+            objectIdx: this.objectIdx, 
+            insn: cmd.insn,
+            dst: cmd.dst.toString(16).padStart(8, '0'),
+            src: cmd.src.toString(16).padStart(8, '0')
+        });
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
                 switch (cmd.insn.subGrp) {
@@ -624,9 +605,9 @@ export default class MpvPlayer {
                                 const vector = new this.module.StringVector();
                                 MpvPlayer.vectorToArray(playlist.clips).slice(playItemId)
                                     .forEach((clip, i) => i 
-                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`)
+                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
-                                            `/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
                                             `start=${resumeTime}`
                                         ));
 
@@ -676,8 +657,8 @@ export default class MpvPlayer {
                                 const vector = new this.module.StringVector();
                                 MpvPlayer.vectorToArray(playlist.clips).slice(src)
                                     .forEach((clip, i) => i 
-                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`)
-                                        : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
+                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
+                                        : this.module.loadFile(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 'aid=2'));
 
                                 this.module.loadFiles(vector);
 
@@ -707,9 +688,9 @@ export default class MpvPlayer {
                                     .reduce((duration, clip) => duration + clip.outTime - clip.inTime, 0n);
                                 clips.slice(playMark.clipRef)
                                     .forEach((clip, i) => i
-                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`)
+                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
-                                            `/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
                                             `start=${(playMark.start - duration) / 90000n}`
                                         ));
 
@@ -739,8 +720,8 @@ export default class MpvPlayer {
                                 const vector = new this.module.StringVector();
                                 MpvPlayer.vectorToArray(playlist.clips).slice(dstVal)
                                     .forEach((clip, i) => i 
-                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`) 
-                                        : this.module.loadFile(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
+                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`) 
+                                        : this.module.loadFile(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
 
                                 this.module.loadFiles(vector);
 
@@ -769,9 +750,9 @@ export default class MpvPlayer {
                                     .reduce((duration, clip) => duration + clip.outTime - clip.inTime, 0n);
                                 clips.slice(playMark.clipRef)
                                     .forEach((clip, i) => i
-                                        ? vector.push_back(`/extfs/BDMV/STREAM/${clip.clipId}.m2ts`)
+                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
-                                            `/extfs/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
                                             `start=${(playMark.start - duration) / 90000n}`
                                         ));
 
@@ -919,11 +900,14 @@ export default class MpvPlayer {
                                 // const igFlag = (BigInt(cmd.src) & 0x80000000n) >> 31n;
                                 // const angleFlag = (BigInt(cmd.src) & 0x8000n) >> 15n;
                                 
-                                const newAudioStream = (BigInt(cmd.dst) & 0xFF0000n) >> 16n;
-                                if (audioFlag) this.module.setAudioTrack(
-                                    cmd.insn.immOp1 ? newAudioStream : BigInt(
-                                        this.getMemoryValue(Number(newAudioStream))
-                                    ));
+                                const newAudioStream = Number((BigInt(cmd.dst) & 0xFF0000n) >> 16n);
+                                const trackIdx = (cmd.insn.immOp1 
+                                    ? newAudioStream 
+                                    : this.getMemoryValue(newAudioStream)
+                                ) - 1;
+                                if (audioFlag) this.audioTracks[trackIdx]
+                                    ? this.module.setAudioTrack(this.audioTracks[trackIdx].id)
+                                    : (this.nextAudioTrack = trackIdx);
 
                                 const newSubtitleStream = BigInt(cmd.dst) & 0xFFn;
                                 if (pgFlag) {
@@ -1079,10 +1063,10 @@ export default class MpvPlayer {
         MpvPlayer.destructPlaylist(playlist);
     }
 
-    async loadBluray() {
-        const handle = await this.mountFolder();
-        if (!handle) return;
-        this.proxy.blurayDiscInfo = this.module.bdOpen('/extfs');
+    async loadBluray(path: string) {
+        await this.module.getPromise(this.module.bdOpen(path));
+        this.proxy.blurayDiscInfo = this.module.bdGetInfo();
+        this.proxy.blurayDiscPath = path;
         this.proxy.title = typeof this.proxy.blurayDiscInfo.discName === 'string' ? this.proxy.blurayDiscInfo.discName : "Bluray Disc";
 
         if (this.proxy.blurayDiscInfo.firstPlaySupported)

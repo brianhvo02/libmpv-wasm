@@ -315,13 +315,14 @@ void load_file_proxy(void* args) {
 
     const char * cmd[] = {"loadfile", path.c_str(), "replace", "0", load_file_args->options.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
+    free(args);
 }
 
 void load_file(string path, string options) {
     load_file_args_t* args_ptr = (load_file_args_t*)malloc(sizeof(load_file_args_t));
     args_ptr->path = path;
     args_ptr->options = options;
-    emscripten_proxy_async(main_queue, main_thread, load_file_proxy, args_ptr);
+    emscripten_proxy_async(main_queue, side_thread, load_file_proxy, args_ptr);
 }
 
 void open_disc_proxy(void* args) {
@@ -345,6 +346,7 @@ void open_disc_proxy(void* args) {
     }
 
     disc_info = open_bd_disc(path);
+    free(args);
 }
 
 uint32_t open_disc(string path) {

@@ -229,7 +229,7 @@ export default class MpvPlayer {
                                 this.proxy.videoStream = parseInt(payload.value);
                                 break;
                             case 'aid':
-                                this.proxy.audioStream = parseInt(payload.value);
+                                this.proxy.audioStream =  parseInt(payload.value);
                                 break;
                             case 'sid':
                                 this.proxy.subtitleStream = parseInt(payload.value);
@@ -538,23 +538,23 @@ export default class MpvPlayer {
     }
 
     async executeCommand(cmd: MobjCmd, menu = false) {
-        console.log(menu ? {
-            memory: { ...this.memory },
-            playlistId: this.playlistId,
-            menuPageId: this.menuPageId, 
-            menuSelected: this.menuSelected, 
-            menuIdx: this.menuIdx, 
-            insn: cmd.insn,
-            dst: cmd.dst.toString(16).padStart(8, '0'),
-            src: cmd.src.toString(16).padStart(8, '0')
-        } : {
-            memory: { ...this.memory },
-            blurayTitle: this.blurayTitle,
-            objectIdx: this.objectIdx, 
-            insn: cmd.insn,
-            dst: cmd.dst.toString(16).padStart(8, '0'),
-            src: cmd.src.toString(16).padStart(8, '0')
-        });
+        // console.log(menu ? {
+        //     memory: { ...this.memory },
+        //     playlistId: this.playlistId,
+        //     menuPageId: this.menuPageId, 
+        //     menuSelected: this.menuSelected, 
+        //     menuIdx: this.menuIdx, 
+        //     insn: cmd.insn,
+        //     dst: cmd.dst.toString(16).padStart(8, '0'),
+        //     src: cmd.src.toString(16).padStart(8, '0')
+        // } : {
+        //     memory: { ...this.memory },
+        //     blurayTitle: this.blurayTitle,
+        //     objectIdx: this.objectIdx, 
+        //     insn: cmd.insn,
+        //     dst: cmd.dst.toString(16).padStart(8, '0'),
+        //     src: cmd.src.toString(16).padStart(8, '0')
+        // });
         switch (cmd.insn.grp) {
             case HDMV_INSN_GRP.INSN_GROUP_BRANCH:
                 switch (cmd.insn.subGrp) {
@@ -608,7 +608,13 @@ export default class MpvPlayer {
                                         ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
                                             `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
-                                            `start=${resumeTime}`
+                                            `start=${resumeTime},` +
+                                            'aid=' + (this.nextAudioTrack !== null
+                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                : this.audioStream
+                                                    ? this.audioStream
+                                                    : 'auto'
+                                            )
                                         ));
 
                                 this.module.loadFiles(vector);
@@ -657,8 +663,18 @@ export default class MpvPlayer {
                                 const vector = new this.module.StringVector();
                                 MpvPlayer.vectorToArray(playlist.clips).slice(src)
                                     .forEach((clip, i) => i 
-                                        ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
-                                        : this.module.loadFile(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 'aid=2'));
+                                        ? vector.push_back(
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`
+                                        ) : this.module.loadFile(
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            'aid=' + (this.nextAudioTrack !== null
+                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                : this.audioStream
+                                                    ? this.audioStream
+                                                    : 'auto'
+                                            )
+                                        )
+                                    );
 
                                 this.module.loadFiles(vector);
 
@@ -691,7 +707,13 @@ export default class MpvPlayer {
                                         ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
                                             `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
-                                            `start=${(playMark.start - duration) / 90000n}`
+                                            `start=${(playMark.start - duration) / 90000n},` +
+                                            'aid=' + (this.nextAudioTrack !== null
+                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                : this.audioStream
+                                                    ? this.audioStream
+                                                    : 'auto'
+                                            )
                                         ));
 
                                 this.module.loadFiles(vector);
@@ -721,7 +743,15 @@ export default class MpvPlayer {
                                 MpvPlayer.vectorToArray(playlist.clips).slice(dstVal)
                                     .forEach((clip, i) => i 
                                         ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`) 
-                                        : this.module.loadFile(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, ''));
+                                        : this.module.loadFile(
+                                            `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
+                                            'aid=' + (this.nextAudioTrack !== null
+                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                : this.audioStream
+                                                    ? this.audioStream
+                                                    : 'auto'
+                                            )
+                                        ));
 
                                 this.module.loadFiles(vector);
 
@@ -753,7 +783,13 @@ export default class MpvPlayer {
                                         ? vector.push_back(`/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`)
                                         : this.module.loadFile(
                                             `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
-                                            `start=${(playMark.start - duration) / 90000n}`
+                                            `start=${(playMark.start - duration) / 90000n},` +
+                                            'aid=' + (this.nextAudioTrack !== null
+                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                : this.audioStream
+                                                    ? this.audioStream
+                                                    : 'auto'
+                                            )
                                         ));
 
                                 this.module.loadFiles(vector);
@@ -1063,8 +1099,41 @@ export default class MpvPlayer {
         MpvPlayer.destructPlaylist(playlist);
     }
 
+    resetBluray() {
+        this.memory = {};
+
+        this.blurayDiscInfo = null;
+        this.blurayDiscPath = '/';
+        this.objectIdx = 0;
+        this.menuIdx = 0;
+
+        this.videoStream = 1;
+        this.audioStream = 1;
+        this.nextAudioTrack = null;
+        this.currentChapter = 0;
+        this.subtitleStream = 1;
+        this.subtitleDispFlag = false;
+        
+        this.blurayTitle = 0;
+        this.playlistId = 0;
+        this.playItemId = 0;
+
+        this.menuPictures = {};
+        this.menuActivated = false;
+        this.menuSelected = 0;
+        this.menuPageId = -1;
+        this.buttonState = [];
+        this.menuCallAllow = false;
+        this.hasPopupMenu = false;
+        this.menuInitiated = false;
+
+        this.resumeInfo = null;
+    }
+
     async loadBluray(path: string) {
         await this.module.getPromise(this.module.bdOpen(path));
+        this.module.stop();
+        this.resetBluray();
         this.proxy.blurayDiscInfo = this.module.bdGetInfo();
         this.proxy.blurayDiscPath = path;
         this.proxy.title = typeof this.proxy.blurayDiscInfo.discName === 'string' ? this.proxy.blurayDiscInfo.discName : "Bluray Disc";

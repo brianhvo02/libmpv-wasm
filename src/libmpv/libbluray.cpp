@@ -1,6 +1,6 @@
 #include "libbluray.h"
 
-BLURAY* bd = bd_init();
+BLURAY* bd = NULL;
 
 static bluray_mobj_objects_t read_mobj(string path) {
     mobj_objects* mobj_objects = bd_read_mobj(path.c_str());
@@ -99,8 +99,10 @@ void* get_playlist_thread(void* args) {
 }
 
 bluray_disc_info_t open_bd_disc(string path) {
-    int success = bd_open_disc(bd, path.c_str(), NULL);
-    assert(success == 1);
+    if (bd != NULL)
+        bd_close(bd);
+
+    bd = bd_open(path.c_str(), NULL);
 
     const BLURAY_DISC_INFO *info = bd_get_disc_info(bd);
     uint32_t num_playlists = bd_get_titles(bd, 0, 0);

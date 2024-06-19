@@ -285,7 +285,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         </>
                     }
                     {
-                        // audioTracks && audioTracks.length > 1 &&
+                        audioTracks && audioTracks.length > 1 &&
                         <>
                             <FontAwesomeIcon 
                                 icon={faMusic}

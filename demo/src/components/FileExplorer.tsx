@@ -1,10 +1,10 @@
 import { Dispatch, SetStateAction, useContext, useEffect, useState } from 'react';
 import './FileExplorer.scss';
-import { Avatar, Button, IconButton, List, ListItem, ListItemAvatar, ListItemButton, ListItemText, Modal, Paper, SxProps, Theme } from '@mui/material';
+import { Avatar, Box, Button, CircularProgress, IconButton, List, ListItem, ListItemAvatar, ListItemButton, ListItemText, Modal, Paper, SxProps, Theme } from '@mui/material';
 import { Folder, Delete, FilePresent } from '@mui/icons-material';
 import { PlayerContext } from '../MpvPlayerHooks';
 
-const paperStyle: SxProps<Theme> = {
+const boxStyle: SxProps<Theme> = {
     position: 'absolute',
     top: '50%',
     left: '50%',
@@ -12,8 +12,8 @@ const paperStyle: SxProps<Theme> = {
 
     display: 'flex',
     flexDirection: 'column',
-    // alignItems: 'center',
-    // justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
 
     gap: '1rem',
     padding: '1.5rem',
@@ -21,10 +21,15 @@ const paperStyle: SxProps<Theme> = {
     width: '40%',
     height: '65%',
 
+    outline: 'none'
+}
+
+const paperStyle: SxProps<Theme> = {
+    ...boxStyle,
+    alignItems: 'auto',
+    justifyContent: 'auto',
     color: '#dadada',
     backgroundColor: '#141519', 
-
-    outline: 'none'
 }
 
 interface FileExplorerProps {
@@ -42,6 +47,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
     const [path, setPath] = useState('/');
     const [rootTree, setRootTree] = useState<Record<string, FileSystemDirectoryHandle>>({});
     const [tree, setTree] = useState<FileTree>({});
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         player?.mpvPlayer?.getDirectories().then(directories => {
@@ -81,6 +87,11 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
     return (
         <Modal open={openFileExplorer} onClose={() => setOpenFileExplorer(false)}>
             <Paper sx={paperStyle} className='file-explorer'>
+                <Modal open={loading}>
+                    <Box sx={boxStyle}>
+                        <CircularProgress />
+                    </Box>
+                </Modal>
                 <h2 className='header'>{path}</h2>
                 <List className='files'>
                     { !!history.length &&
@@ -137,8 +148,16 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                     <Button onClick={() => player?.mpvPlayer?.mountFolder()
                         .then(res => setRootTree(prev => ({ ...prev, ...res })))
                     } variant='contained'>Mount Folder</Button>
-                    <Button onClick={() => player?.mpvPlayer?.loadBluray(path)
-                    } variant='contained'>Open as Disc</Button>
+                    <Button onClick={() => {
+                        setLoading(true);
+                        player?.mpvPlayer?.loadBluray(path)
+                            .then(() => {
+                                setLoading(false);
+                                setOpenFileExplorer(false);
+                            });
+                    }} variant='contained'>
+                        Open as Disc
+                    </Button>
                 </div>
             </Paper>
         </Modal>

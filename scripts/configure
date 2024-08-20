@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+# git apply --unsafe-paths --directory "$EMSDK/upstream/emscripten" fetchfs.patch
+
 case "$PKG_CONFIG_PATH" in
     '')
         export PKG_CONFIG_PATH="$(pwd)/../build_libs/lib/pkgconfig"

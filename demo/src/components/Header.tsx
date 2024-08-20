@@ -1,20 +1,20 @@
 import './Header.scss';
-import { Dispatch, SetStateAction, useContext, useRef, useState } from 'react';
-import { Button, CircularProgress, Modal, Paper, SxProps, Theme } from '@mui/material';
+import { Dispatch, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
+import { Button, CircularProgress, Modal, Paper, Popover, PopoverOrigin, SxProps, TextField, Theme } from '@mui/material';
 import { PlayerContext } from '../MpvPlayerHooks';
 import FileExplorer from './FileExplorer';
-// import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-// import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons';
 
-// const anchorOrigin: PopoverOrigin = {
-//     vertical: 'bottom',
-//     horizontal: 'left'
-// }
+const anchorOrigin: PopoverOrigin = {
+    vertical: 'bottom',
+    horizontal: 'left'
+}
 
-// const transformOrigin: PopoverOrigin = {
-//     vertical: 'top',
-//     horizontal: 'left'
-// }
+const transformOrigin: PopoverOrigin = {
+    vertical: 'top',
+    horizontal: 'left'
+}
 
 const paperStyle: SxProps<Theme> = {
     position: 'absolute',
@@ -32,6 +32,8 @@ const paperStyle: SxProps<Theme> = {
     width: '15rem',
     height: '15rem',
 
+    padding: '1rem',
+
     color: '#dadada',
     backgroundColor: '#141519', 
 
@@ -46,28 +48,27 @@ interface HeaderProps {
 const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
     const player = useContext(PlayerContext);
     // const [libraryMenu, setLibraryMenu] = useState(false);
-    // const [openUrlMenu, setOpenUrlMenu] = useState(false);
+    const [openUrlMenu, setOpenUrlMenu] = useState(false);
     const [openFileExplorer, setOpenFileExplorer] = useState(false);
     const [error, setError] = useState<string | null>(null);
     
     // const libraryRef = useRef<HTMLDivElement>(null);
     const headerRef = useRef<HTMLElement>(null);
 
-    // OpenSSL capabilities
-    // const [url, setUrl] = useState('');
-    // const openUrlRef = useRef<HTMLDivElement>(null);
+    const [url, setUrl] = useState('');
+    const openUrlRef = useRef<HTMLDivElement>(null);
 
-    // useEffect(() => {
-    //     if (!openUrlMenu)
-    //         setUrl('');
-    // }, [openUrlMenu]);
+    useEffect(() => {
+        if (!openUrlMenu)
+            setUrl('');
+    }, [openUrlMenu]);
 
-    // const handleUrlLoadClick = () => {
-    //     if (!player?.mpvPlayer) return;
-    //     player.mpvPlayer.module.loadUrl(url);
-    //     setOpenUrlMenu(false);
-    //     player.setTitle(url);
-    // }
+    const handleUrlLoadClick = () => {
+        if (!player?.mpvPlayer) return;
+        player.mpvPlayer.module.loadUrl(url);
+        setOpenUrlMenu(false);
+        // player.setTitle(url);
+    }
 
     return (
         <header ref={headerRef} style={openHeader ? { top: 0 } : {}}>
@@ -101,13 +102,10 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
             <div className='navbar' onClick={() => setOpenFileExplorer(true)}>
                 <span>Open</span>
             </div>
-            {/* OpenSSL capabilities */}
             {/* <div className='navbar' ref={openUrlRef} style={
                 openUrlMenu ? { backgroundColor: '#141519' } : {}
             } onClick={() => {
                 setOpenUrlMenu(prev => !prev);
-                if (libraryMenu)
-                    setLibraryMenu(false);
             }}>
                 <span>Open URL</span>
                 <FontAwesomeIcon icon={faChevronDown} />

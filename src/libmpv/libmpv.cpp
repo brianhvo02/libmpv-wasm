@@ -365,23 +365,53 @@ void load_files(vector<string> paths) {
 
     for (auto path : paths) {
         if (!filesystem::exists(path))
-            printf("%s does not exist\n", path.c_str());
+            fprintf(stderr, "%s does not exist\n", path.c_str());
 
         const char * cmd[] = {"loadfile", path.c_str(), "append-play", NULL};
         mpv_command_async(mpv, 0, cmd);
     }
 }
 
+// void load_url_proxy(void* args) {
+//     string url = *(string*)args;
+//     filesystem::path path = url.substr(url.find("/") + 1);
+//     string root_path = "/" + string(*next(path.begin()));
+//     string root_url = "http://localhost:5000/proxy/" + url.substr(0, url.find("/", url.find("//") + 2));
+    
+//     if (!filesystem::is_directory(root_path)) {
+//         printf("mounting directory at %s\n", root_path.c_str());
+//         backend_t backend = wasmfs_create_fetchfs_backend(root_url.c_str());
+//         int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
+//         if (err) {
+//             fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
+//             return;
+//         }
+//     }
+
+//     ifstream(path, ios::binary);
+
+//     // if (!filesystem::exists(path)) {
+//     //     fprintf(stderr, "file does not exist\n");
+//     //     return;
+//     // }
+
+//     const char * cmd[] = {"loadfile", path.c_str(), "replace", NULL};
+//     mpv_command_async(mpv, 0, cmd);
+//     free(args);
+// }
+
 // void load_url(string url) {
 //     printf("loading %s\n", url.c_str());
     
 //     if (url.find("http://") + url.find("https://") < string::npos) {
-//         printf("unsupported protocol\n");
+//         fprintf(stderr, "unsupported protocol\n");
 //         return;
 //     }
 
-//     const char * cmd[] = {"loadfile", url.c_str(), NULL};
-//     mpv_command_async(mpv, 0, cmd);
+//     string* url_ptr = (string*)malloc(sizeof(string));
+//     *url_ptr = url;
+
+//     emscripten_proxy_async(main_queue, side_thread, load_url_proxy, url_ptr);
 // }
 
 void toggle_play() {

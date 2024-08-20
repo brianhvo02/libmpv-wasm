@@ -26,13 +26,13 @@ const App = () => {
             mpvPlayer.module.matchWindowScreenSize();
         }
 
-        // @ts-ignore
-        window.screen?.addEventListener('change', onResize);
+        // // @ts-ignore
+        // window.screen?.addEventListener('change', onResize);
 
-        return () => {
-            // @ts-ignore
-            window.screen?.removeEventListener('resize', onResize);
-        }
+        // return () => {
+        //     // @ts-ignore
+        //     window.screen?.removeEventListener('resize', onResize);
+        // }
     }, [mpvPlayer]);
 
     useEffect(() => {

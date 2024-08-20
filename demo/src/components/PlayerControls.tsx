@@ -249,74 +249,68 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         </MenuItem>
                     )) }</Menu>
                     </> }
-                    {
-                        videoTracks && videoTracks.length > 1 &&
-                        <>
-                            <FontAwesomeIcon 
-                                icon={faVideo}
-                                ref={videoMenuRef}
-                                onClick={() => setVideoMenu(true)}
-                                style={pointerStyle}
-                                color={videoMenu ? '#73467d' : 'white'}
-                            />
-                            <Menu
-                                anchorEl={videoMenuRef.current}
-                                anchorOrigin={anchorOrigin}
-                                transformOrigin={transformOrigin}
-                                open={audioMenu}
-                                onClose={() => setVideoMenu(false)}
-                                container={playerRef.current}
-                            >
-                                {videoTracks.map((track) => (
-                                <MenuItem key={`video_${Number(track.id)}`} 
-                                    onClick={() => mpvPlayer.module.setVideoTrack(track.id)}>
-                                    {
-                                        videoStream === Number(track.id) &&
-                                        <ListItemIcon>
-                                            <Check />
-                                        </ListItemIcon>
-                                    }
-                                    <ListItemText inset={videoStream !== Number(track.id)}>
-                                        {track.title ?? 'Video Track ' + Number(track.id)}
-                                    </ListItemText>
-                                </MenuItem>
-                                ))}
-                            </Menu>
-                        </>
-                    }
-                    {
-                        audioTracks && audioTracks.length > 1 &&
-                        <>
-                            <FontAwesomeIcon 
-                                icon={faMusic}
-                                ref={audioMenuRef}
-                                onClick={() => setAudioMenu(true)}
-                                style={pointerStyle}
-                                color={audioMenu ? '#73467d' : 'white'}
-                            />
-                            <Menu
-                                anchorEl={audioMenuRef.current}
-                                anchorOrigin={anchorOrigin}
-                                transformOrigin={transformOrigin}
-                                open={audioMenu}
-                                onClose={() => setAudioMenu(false)}
-                                container={playerRef.current}
-                            >
-                                {audioTracks.map((track, i) => (
-                                <MenuItem key={`audio_${i}`} 
-                                    onClick={() => mpvPlayer.module.setAudioTrack(track.id)}>
-                                    { audioStream === Number(track.id) &&
-                                    <ListItemIcon>
-                                        <Check />
-                                    </ListItemIcon> }
-                                    <ListItemText inset={audioStream !== Number(track.id)}>
-                                        {track.title ?? 'Audio Track ' + (i + 1)} ({track.lang ?? 'und'})
-                                    </ListItemText>
-                                </MenuItem>
-                                ))}
-                            </Menu>
-                        </>
-                    }
+                    { videoTracks && videoTracks.length > 1 && <>
+                    <FontAwesomeIcon 
+                        icon={faVideo}
+                        ref={videoMenuRef}
+                        onClick={() => setVideoMenu(true)}
+                        style={pointerStyle}
+                        color={videoMenu ? '#73467d' : 'white'}
+                    />
+                    <Menu
+                        anchorEl={videoMenuRef.current}
+                        anchorOrigin={anchorOrigin}
+                        transformOrigin={transformOrigin}
+                        open={audioMenu}
+                        onClose={() => setVideoMenu(false)}
+                        container={playerRef.current}
+                    >
+                        {videoTracks.map((track) => (
+                        <MenuItem key={`video_${Number(track.id)}`} 
+                            onClick={() => mpvPlayer.module.setVideoTrack(track.id)}>
+                            {
+                                videoStream === Number(track.id) &&
+                                <ListItemIcon>
+                                    <Check />
+                                </ListItemIcon>
+                            }
+                            <ListItemText inset={videoStream !== Number(track.id)}>
+                                {track.title ?? 'Video Track ' + Number(track.id)}
+                            </ListItemText>
+                        </MenuItem>
+                        ))}
+                    </Menu>
+                    </> }
+                    { audioTracks && audioTracks.length > 1 && <>
+                    <FontAwesomeIcon 
+                        icon={faMusic}
+                        ref={audioMenuRef}
+                        onClick={() => setAudioMenu(true)}
+                        style={pointerStyle}
+                        color={audioMenu ? '#73467d' : 'white'}
+                    />
+                    <Menu
+                        anchorEl={audioMenuRef.current}
+                        anchorOrigin={anchorOrigin}
+                        transformOrigin={transformOrigin}
+                        open={audioMenu}
+                        onClose={() => setAudioMenu(false)}
+                        container={playerRef.current}
+                    >
+                        {audioTracks.map((track, i) => (
+                        <MenuItem key={`audio_${i}`} 
+                            onClick={() => mpvPlayer.module.setAudioTrack(track.id)}>
+                            { audioStream === Number(track.id) &&
+                            <ListItemIcon>
+                                <Check />
+                            </ListItemIcon> }
+                            <ListItemText inset={audioStream !== Number(track.id)}>
+                                {track.title ?? 'Audio Track ' + (i + 1)} ({track.lang ?? 'und'})
+                            </ListItemText>
+                        </MenuItem>
+                        ))}
+                    </Menu>
+                    </> }
                     { subtitleTracks && subtitleTracks.length > 0 && <>
                     <FontAwesomeIcon 
                         icon={faMessage} 

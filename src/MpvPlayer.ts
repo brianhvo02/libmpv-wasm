@@ -1,8 +1,7 @@
 import libmpvLoader, { BlurayDiscInfo, BlurayPlaylistInfo, MobjCmd } from './libmpv.js';
 import _ from 'lodash';
 import { getRandom, isAudioTrack, isVideoTrack, loadImage } from './utils';
-import { showOpenFilePicker } from 'native-file-system-adapter';
-import { MainModule, Button } from './libmpv.js';
+import { MainModule } from './libmpv.js';
 
 type ProxyHandle<K, V> = (this: MpvPlayer, value: V, key: K) => void;
 interface ProxyOptions {

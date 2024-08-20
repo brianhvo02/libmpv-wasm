@@ -34,7 +34,7 @@
         "typescript": "^5.4.5"
     },
     "dependencies": {
-        "lodash": "^4.17.21",
-        "native-file-system-adapter": "^3.0.1"
+        "file-system-access": "^1.0.4",
+        "lodash": "^4.17.21"
     }
 }

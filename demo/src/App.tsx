@@ -9,22 +9,22 @@ const App = () => {
     const { mpvPlayer, setTitle, fileEnd, bluray } = player;
     const [openHeader, setOpenHeader] = useState(true);
     const [hideHeader, setHideHeader] = useState(false);
-    const screenWidth = useRef(window.screen.width);
-    const screenHeight = useRef(window.screen.height);
+    // const screenWidth = useRef(window.screen.width);
+    // const screenHeight = useRef(window.screen.height);
     const headerTimeout = useRef<number>();
 
     useEffect(() => {
         if (!mpvPlayer?.module) return;
 
-        const onResize = () => {
-            const { width, height } = window.screen;
-            if (screenWidth.current === width && screenHeight.current === height)
-                return;
+        // const onResize = () => {
+        //     const { width, height } = window.screen;
+        //     if (screenWidth.current === width && screenHeight.current === height)
+        //         return;
 
-            screenWidth.current = width;
-            screenWidth.current = height;
-            mpvPlayer.module.matchWindowScreenSize();
-        }
+        //     screenWidth.current = width;
+        //     screenWidth.current = height;
+        //     mpvPlayer.module.matchWindowScreenSize();
+        // }
 
         // // @ts-ignore
         // window.screen?.addEventListener('change', onResize);

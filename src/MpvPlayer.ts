@@ -667,7 +667,7 @@ export default class MpvPlayer {
                                         ) : this.module.loadFile(
                                             `/${this.blurayDiscPath}/BDMV/STREAM/${clip.clipId}.m2ts`, 
                                             'aid=' + (this.nextAudioTrack !== null
-                                                ? this.audioTracks[this.nextAudioTrack].id
+                                                ? this.audioTracks[this.nextAudioTrack]?.id
                                                 : this.audioStream
                                                     ? this.audioStream
                                                     : 'auto'

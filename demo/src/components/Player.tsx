@@ -118,6 +118,16 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         const module = player?.mpvPlayer?.module;
         if (!module || !player.title.length) return;
 
+        if (e.shiftKey && e.code === 'KeyD') {
+            module.subDelayUp();
+            return;
+        }
+
+        if (e.shiftKey && e.code === 'KeyA') {
+            module.subDelayDown();
+            return;
+        }
+
         if (player?.menuPageId > -1) {
             if (!player.mpvPlayer) return;
 

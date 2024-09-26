@@ -30,7 +30,7 @@ add_executable(libmpv src/libmpv/libmpv.cpp ${SOURCES} ${HEADERS})
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal -lexternalfs.js --preload-file ../shaders@/shaders --emit-tsd libmpv.d.ts \
+set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal -lexternalfs.js --preload-file ../shaders@/shaders --preload-file ../mpv@/mpv --emit-tsd libmpv.d.ts \
 -sUSE_PTHREADS -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=20 -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=2GB -sOFFSCREENCANVAS_SUPPORT \
 -sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread','ExternalFS','getPromise'] -sEXPORT_NAME='libmpvLoader'")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")

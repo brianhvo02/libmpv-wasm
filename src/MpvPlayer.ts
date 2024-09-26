@@ -23,6 +23,8 @@ interface ProxyOptions {
     fileEnd: ProxyHandle<'fileEnd', MpvPlayer['fileEnd']>;
     files: ProxyHandle<'files', MpvPlayer['files']>;
     shaderCount: ProxyHandle<'shaderCount', MpvPlayer['shaderCount']>;
+    extSubLoaded: ProxyHandle<'extSubLoaded', MpvPlayer['extSubLoaded']>;
+    subDelay: ProxyHandle<'subDelay', MpvPlayer['subDelay']>;
 
     memory: ProxyHandle<'memory', MpvPlayer['memory']>;
 
@@ -46,7 +48,7 @@ const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => 
     'idle', 'isPlaying', 'duration', 'elapsed',
     'videoStream', 'videoTracks', 'audioStream', 'audioTracks',
     'subtitleStream', 'subtitleTracks', 'currentChapter', 'chapters',
-    'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount',
+    'isSeeking', 'uploading', 'title', 'fileEnd', 'files', 'shaderCount', 'extSubLoaded', 'subDelay',
     'memory', 'blurayDiscInfo', 'blurayDiscPath', 'objectIdx', 'blurayTitle', 'menuCallAllow',
     'playlistId', 'playItemId', 'menuPictures', 'menuActivated', 'menuSelected', 'menuPageId', 'hasPopupMenu'
 ].includes(typeof prop === 'symbol' ? prop.toString() : prop);
@@ -104,6 +106,8 @@ export default class MpvPlayer {
     files: string[] = [];
 
     shaderCount = -1;
+    extSubLoaded = false;
+    subDelay = 0;
 
     proxy: MpvPlayer;
 
@@ -244,6 +248,9 @@ export default class MpvPlayer {
                             case 'metadata/by-key/title':
                                 this.proxy.title = payload.value;
                                 break;
+                            case 'sub-delay':
+                                this.proxy.subDelay = Math.round((payload.value + Number.EPSILON) * 10) / 10;
+                                break;
                             default:
                                 console.log(`event: property-change -> { name: ${
                                     payload.name
@@ -251,6 +258,9 @@ export default class MpvPlayer {
                         }
                         break;
                     case 'track-list':
+                        this.proxy.extSubLoaded = false;
+                        this.proxy.subDelay = 0;
+
                         const bigIntKeys = [
                             'id', 'srcId', 'mainSelection', 'ffIndex', 
                             'demuxW', 'demuxH', 'demuxChannelCount', 'demuxSamplerate'

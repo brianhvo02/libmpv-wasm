@@ -1,10 +1,11 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Player } from '../MpvPlayerHooks';
-import { ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
+import { Divider, ListItemIcon, ListItemText, Menu, MenuItem, Popover, PopoverOrigin, Slider } from '@mui/material';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBackwardStep, faBars, faBookmark, faCompass, faExpand, faFilm, faForwardStep, faMessage, faMusic, faPause, faPlay, faVideo, faVolumeHigh } from '@fortawesome/free-solid-svg-icons';
 import { formatTime } from '../utils';
 import { Check } from '@mui/icons-material';
+import FileExplorer from './FileExplorer';
 
 const anchorOrigin: PopoverOrigin = {
     vertical: 'top',
@@ -26,9 +27,10 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
         title, elapsed, duration, isPlaying, volume,
         videoStream, videoTracks,
         audioStream, audioTracks,
-        currentChapter, chapters,
+        currentChapter, chapters, subDelay,
         subtitleStream, subtitleTracks,
         menuCallAllow, hasPopupMenu,
+        extSubLoaded, setExtSubLoaded,
     } = player;
 
     const volumeRef = useRef<SVGSVGElement>(null);
@@ -44,6 +46,7 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
     const [subtitleMenu, setSubtitleMenu] = useState(false);
     const [chapterMenu, setChapterMenu] = useState(false);
     const [mouseIsMoving, setMouseIsMoving] = useState(false);
+    const [openFileExplorer, setOpenFileExplorer] = useState(false);
 
     const toggleFullscreen = useCallback(() => document.fullscreenElement
         ? document.exitFullscreen()
@@ -311,7 +314,12 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                         ))}
                     </Menu>
                     </> }
-                    { subtitleTracks && subtitleTracks.length > 0 && <>
+                    <FileExplorer onFileClick={path => {
+                        if (!path.length) return;
+                        mpvPlayer.module.loadSubs(path);
+                        setExtSubLoaded(true);
+                        setOpenFileExplorer(false);
+                    }} openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} />
                     <FontAwesomeIcon 
                         icon={faMessage} 
                         ref={subtitleMenuRef}
@@ -354,8 +362,29 @@ const PlayerControls = ({ player }: PlayerControlsProps) => {
                                 </MenuItem>
                             ))
                         }
+                        <Divider />
+                        { extSubLoaded &&
+                        <MenuItem onClick={() => mpvPlayer.module.setSubtitleTrack(BigInt(subtitleTracks.length + 1))}>
+                            { subtitleStream === (subtitleTracks.length + 1) &&
+                            <ListItemIcon>
+                                <Check />
+                            </ListItemIcon> }
+                            <ListItemText inset={subtitleStream !== (subtitleTracks.length + 1)}>
+                                External Subtitle
+                            </ListItemText>
+                        </MenuItem> }
+                        <MenuItem onClick={() => setOpenFileExplorer(true)}>
+                            <ListItemText inset>
+                                Add external subtitle...
+                            </ListItemText>
+                        </MenuItem>
+                        <Divider />
+                        <MenuItem>
+                            <ListItemText inset>
+                                Subtitle Offset: {subDelay}s
+                            </ListItemText>
+                        </MenuItem>
                     </Menu>
-                    </> }
                     <FontAwesomeIcon
                         icon={faExpand}
                         onClick={() => toggleFullscreen()}

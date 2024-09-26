@@ -67,6 +67,8 @@ int main(int argc, char const *argv[]) {
     mpv = mpv_create();
     if (!mpv) die("context init failed");
 
+    mpv_set_option_string(mpv, "config-dir", "/mpv");
+    mpv_set_option_string(mpv, "config", "yes");
     mpv_set_property_string(mpv, "vo", "libmpv");
 
     if (mpv_initialize(mpv) < 0)
@@ -118,6 +120,7 @@ int main(int argc, char const *argv[]) {
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
     mpv_observe_property(mpv, 0, "playlist-current-pos", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "sub-delay", MPV_FORMAT_DOUBLE);
 
     emscripten_set_main_loop(main_loop, 0, 1);
 
@@ -285,15 +288,7 @@ void main_loop() {
     }
 }
 
-typedef struct {
-    string path;
-    string options;
-} load_file_args_t;
-
-void load_file_proxy(void* args) {
-    load_file_args_t* load_file_args = (load_file_args_t*)args;
-
-    filesystem::path path = load_file_args->path;
+int mount_file(filesystem::path path) {
     string root_name = *next(path.begin());
     string root_path = "/" + root_name;
     
@@ -302,18 +297,28 @@ void load_file_proxy(void* args) {
         int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
         if (err) {
             fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
-            return;
+            return 1;
         }
     }
     
-    // printf("loading %s with options %s\n", path.c_str(), load_file_args->options.c_str());
-    
     if (!filesystem::exists(path)) {
         fprintf(stderr, "file does not exist\n");
-        return;
+        return 1;
     }
 
-    const char * cmd[] = {"loadfile", path.c_str(), "replace", "0", load_file_args->options.c_str(), NULL};
+    return 0;
+}
+
+typedef struct {
+    string path;
+    string options;
+} load_file_args_t;
+
+void load_file_proxy(void* args) {
+    load_file_args_t* load_file_args = (load_file_args_t*)args;
+    if (mount_file(load_file_args->path)) return;
+
+    const char * cmd[] = {"loadfile", load_file_args->path.c_str(), "replace", "0", load_file_args->options.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
     free(args);
 }
@@ -323,6 +328,25 @@ void load_file(string path, string options) {
     args_ptr->path = path;
     args_ptr->options = options;
     emscripten_proxy_async(main_queue, side_thread, load_file_proxy, args_ptr);
+}
+
+void load_subs_proxy(void* args) {
+    load_file_args_t* load_file_args = (load_file_args_t*)args;
+    if (mount_file(load_file_args->path)) return;
+
+    const char *path = load_file_args->path.c_str();
+
+    // mpv_set_property_async(mpv, 0, "sub-files", MPV_FORMAT_STRING, &path);
+    const char * cmd[] = {"sub-add", load_file_args->path.c_str(), NULL};
+    mpv_command_async(mpv, 0, cmd);
+    free(args);
+}
+
+void load_subs(string path) {
+    load_file_args_t* args_ptr = (load_file_args_t*)malloc(sizeof(load_file_args_t));
+    args_ptr->path = path;
+    args_ptr->options = "";
+    emscripten_proxy_async(main_queue, side_thread, load_subs_proxy, args_ptr);
 }
 
 void open_disc_proxy(void* args) {
@@ -467,6 +491,16 @@ void skip_forward() {
 
 void skip_backward() {
     const char * cmd[] = {"seek", "-10", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void sub_delay_up() {
+    const char * cmd[] = {"add", "sub-delay", "0.1", NULL};
+    mpv_command_async(mpv, 0, cmd);
+}
+
+void sub_delay_down() {
+    const char * cmd[] = {"add", "sub-delay", "-0.1", NULL};
     mpv_command_async(mpv, 0, cmd);
 }
 
@@ -615,6 +649,7 @@ EMSCRIPTEN_BINDINGS(libmpv) {
 
     emscripten::function("loadFile", &load_file);
     emscripten::function("loadFiles", &load_files);
+    emscripten::function("loadSubs", &load_subs);
     // emscripten::function("loadUrl", &load_url);
     emscripten::function("togglePlay", &toggle_play);
     emscripten::function("stop", &stop);
@@ -634,6 +669,8 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("getShaderCount", &get_shader_count);
     emscripten::function("matchWindowScreenSize", &match_window_screen_size);
     emscripten::function("createThumbnail", &create_thumbnail_thread);
+    emscripten::function("subDelayUp", &sub_delay_up);
+    emscripten::function("subDelayDown", &sub_delay_down);
 
     register_vector<uint16_t>("UInt16Vector");
     register_vector<uint32_t>("UInt32Vector");

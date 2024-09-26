@@ -36,7 +36,9 @@ export const useMpvPlayer = () => {
     const [menuCallAllow, setMenuCallAllow] = useState(false);
     const [hasPopupMenu, setHasPopupMenu] = useState(false);
 
-    const [shaderCount, setShaderCount] = useState<number>(0);
+    const [shaderCount, setShaderCount] = useState(0);
+    const [extSubLoaded, setExtSubLoaded] = useState(false);
+    const [subDelay, setSubDelay] = useState(0);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -49,9 +51,10 @@ export const useMpvPlayer = () => {
         videoStream, videoTracks,
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
-        currentChapter, chapters,
+        currentChapter, chapters, subDelay,
         blurayTitle, menuCallAllow, hasPopupMenu,
         uploading, fileEnd, shaderCount,
+        extSubLoaded, setExtSubLoaded,
         playlistId, menuPageId, menuPictures,
         menuActivated, setMenuActivated,
         menuSelected, setMenuSelected,
@@ -63,9 +66,10 @@ export const useMpvPlayer = () => {
         videoStream, videoTracks,
         audioStream, audioTracks,
         subtitleStream, subtitleTracks,
-        currentChapter, chapters,
+        currentChapter, chapters, subDelay,
         blurayTitle, menuCallAllow, hasPopupMenu,
-        uploading, fileEnd, shaderCount,
+        uploading, fileEnd, shaderCount, 
+        extSubLoaded, setExtSubLoaded,
         playlistId, menuPageId, menuPictures,
         menuActivated, setMenuActivated,
         menuSelected, setMenuSelected,
@@ -89,6 +93,7 @@ export const useMpvPlayer = () => {
             subtitleTracks: setSubtitleTracks,
             currentChapter: setCurrentChapter,
             chapters: setChapters,
+            subDelay: setSubDelay,
             uploading: setUploading,
             title: val => {
                 if (!val) return;
@@ -96,6 +101,7 @@ export const useMpvPlayer = () => {
             },
             fileEnd: setFileEnd,
             shaderCount: setShaderCount,
+            extSubLoaded: setExtSubLoaded,
             blurayDiscInfo: setBluray,
             menuPageId: setMenuPageId,
             blurayTitle: setBlurayTitle,

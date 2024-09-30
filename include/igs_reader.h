@@ -82,11 +82,20 @@ typedef struct window_t {
     uint16_t height;
 } window_t;
 
+typedef struct crop_t {
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+} crop_t;
+
 typedef struct effect_object_t {
     uint16_t id;
     window_t window;
     uint16_t x;
     uint16_t y;
+
+    crop_t crop;
 } effect_object_t;
 
 typedef struct effect_t {
@@ -96,16 +105,16 @@ typedef struct effect_t {
     vector<effect_object_t> objects;
 } effect_t;
 
-typedef struct window_effect_t {
+typedef struct effect_sequence_t {
     map<string, window_t> windows;
     vector<effect_t> effects;
-} window_effect_t;
+} effect_sequence_t;
 
 typedef struct page_t {
     uint8_t id;
     uint64_t uo;
-    window_effect_t in_effects;
-    window_effect_t out_effects;
+    effect_sequence_t in_effects;
+    effect_sequence_t out_effects;
     uint8_t framerate_divider;
     uint16_t def_button;
     uint16_t def_activated;

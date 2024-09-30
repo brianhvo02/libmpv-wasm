@@ -148,13 +148,18 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                     <Button onClick={() => player?.mpvPlayer?.mountFolder()
                         .then(res => setRootTree(prev => ({ ...prev, ...res })))
                     } variant='contained'>Mount Folder</Button>
-                    <Button onClick={() => {
+                    <Button onClick={async () => {
                         setLoading(true);
-                        player?.mpvPlayer?.loadBluray(path)
-                            .then(() => {
-                                setLoading(false);
-                                setOpenFileExplorer(false);
-                            });
+                        if (await history[history.length - 1].getDirectoryHandle('BDMV').catch(() => {}))
+                            player?.mpvPlayer?.loadBluray(path)
+                                .then(() => {
+                                    setLoading(false);
+                                    setOpenFileExplorer(false);
+                                });
+                        else if (await history[history.length - 1].getDirectoryHandle('VIDEO_TS').catch(() => {})) {
+                            onFileClick(path);
+                            setLoading(false);
+                        } else setLoading(false);
                     }} variant='contained'>
                         Open as Disc
                     </Button>

@@ -3,7 +3,8 @@
         "includePath": [
             "${workspaceFolder}/**",
             "${EMSDK}/upstream/emscripten/cache/sysroot/**",
-            "${workspaceFolder}/build_libs/**"
+            "${workspaceFolder}/build_libs/**",
+            "${workspaceFolder}/include/**",
         ]
     },
     "configurations": [

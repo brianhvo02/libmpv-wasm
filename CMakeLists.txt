@@ -31,7 +31,7 @@ set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal -lexternalfs.js --preload-file ../shaders@/shaders --preload-file ../mpv@/mpv --emit-tsd libmpv.d.ts \
--sUSE_PTHREADS -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=20 -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=2GB -sOFFSCREENCANVAS_SUPPORT \
+-sUSE_PTHREADS -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=20 -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=3GB -sOFFSCREENCANVAS_SUPPORT \
 -sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread','ExternalFS','getPromise'] -sEXPORT_NAME='libmpvLoader'")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")
 

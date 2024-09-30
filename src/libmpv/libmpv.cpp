@@ -768,9 +768,9 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("objectCount", &effect_t::object_count)
         .field("objects", &effect_t::objects);
 
-    value_object<window_effect_t>("WindowEffect")
-        .field("windows", &window_effect_t::windows)
-        .field("effects", &window_effect_t::effects);
+    value_object<effect_sequence_t>("EffectSequence")
+        .field("windows", &effect_sequence_t::windows)
+        .field("effects", &effect_sequence_t::effects);
 
     value_object<page_t>("Page")
         .field("id", &page_t::id)

@@ -25,6 +25,7 @@ const Player = ({ setHideHeader }: PlayerProps) => {
         const videoStream = player.videoTracks[player.videoStream - 1];
         if (!videoStream) return '';
         const { demuxW, demuxH } = videoStream;
+        if (!demuxW || !demuxH) return '1';
         const w = Number(demuxW),
               h = Number(demuxH);
         const d = gcd(w, h);

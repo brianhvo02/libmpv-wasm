@@ -94,16 +94,27 @@ static window_t get_window(uint8_t** segment_ptr) {
 
 static effect_object_t get_effect_object(uint8_t** segment_ptr, map<string, window_t> windows) {
     uint16_t id = ((*segment_ptr)[0] << 8) | (*segment_ptr)[1];
-    uint16_t window_id = ((*segment_ptr)[2] << 8) | (*segment_ptr)[3];
+    uint8_t window_id = (*segment_ptr)[2];
+    uint8_t crop_flag = (*segment_ptr)[3] & 0x80;
 
     effect_object_t object {
         .id = id,
-        .window = windows.at(to_string(window_id)),
+        .window = windows.count(to_string(window_id)) ? windows.at(to_string(window_id)) : window_t(),
         .x = static_cast<uint16_t>(((*segment_ptr)[4] << 8) | (*segment_ptr)[5]),
         .y = static_cast<uint16_t>(((*segment_ptr)[6] << 8) | (*segment_ptr)[7])
     };
 
     (*segment_ptr) += 8;
+
+    if (crop_flag) {
+        object.crop = {
+            .x = static_cast<uint16_t>(((*segment_ptr)[0] << 8) | (*segment_ptr)[1]),
+            .y = static_cast<uint16_t>(((*segment_ptr)[2] << 8) | (*segment_ptr)[3]),
+            .w = static_cast<uint16_t>(((*segment_ptr)[4] << 8) | (*segment_ptr)[5]),
+            .h = static_cast<uint16_t>(((*segment_ptr)[6] << 8) | (*segment_ptr)[7])
+        };
+        (*segment_ptr) += 8;
+    }
     return object;
 }
 
@@ -124,25 +135,25 @@ static effect_t get_effect(uint8_t** segment_ptr, map<string, window_t> windows)
     return effect;
 }
 
-static window_effect_t get_window_effect(uint8_t** segment_ptr) {
-    window_effect_t window_effect;
+static effect_sequence_t get_effect_sequence(uint8_t** segment_ptr) {
+    effect_sequence_t effect_sequence;
     uint8_t window_count = (*segment_ptr)[0];
     (*segment_ptr) += 1;
 
     for (int window_idx = 0; window_idx < window_count; window_idx++) {
         window_t window = get_window(segment_ptr);
-        window_effect.windows[to_string(window.id)] = window;
+        effect_sequence.windows[to_string(window.id)] = window;
     }
 
     uint8_t effect_count = (*segment_ptr)[0];
     (*segment_ptr) += 1;
 
     for (int effect_idx = 0; effect_idx < effect_count; effect_idx++) {
-        effect_t effect = get_effect(segment_ptr, window_effect.windows);
-        window_effect.effects.push_back(effect);
+        effect_t effect = get_effect(segment_ptr, effect_sequence.windows);
+        effect_sequence.effects.push_back(effect);
     }
 
-    return window_effect;
+    return effect_sequence;
 }
 
 static page_t get_page(uint8_t** segment_ptr) {
@@ -155,8 +166,8 @@ static page_t get_page(uint8_t** segment_ptr) {
     page_t page {
         .id = id,
         .uo = uo,
-        .in_effects = get_window_effect(segment_ptr),
-        .out_effects = get_window_effect(segment_ptr),
+        .in_effects = get_effect_sequence(segment_ptr),
+        .out_effects = get_effect_sequence(segment_ptr),
         .framerate_divider = (*segment_ptr)[0],
         .def_button = static_cast<uint16_t>(((*segment_ptr)[1] << 8) | (*segment_ptr)[2]),
         .def_activated = static_cast<uint16_t>(((*segment_ptr)[3] << 8) | (*segment_ptr)[4]),
@@ -384,6 +395,7 @@ igs_t extract_menu(char const *filename) {
 
     while (stream) {
         count++;
+
         stream.read(reinterpret_cast<char *>(packet.data()), 4);
         for (int i = 0; i < MAX_PACKET_SIZE; i++) {
             stream.read(reinterpret_cast<char *>(packet.data()), 1);

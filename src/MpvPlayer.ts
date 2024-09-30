@@ -259,7 +259,6 @@ export default class MpvPlayer {
                         break;
                     case 'track-list':
                         this.proxy.extSubLoaded = false;
-                        this.proxy.subDelay = 0;
 
                         const bigIntKeys = [
                             'id', 'srcId', 'mainSelection', 'ffIndex', 
@@ -376,6 +375,8 @@ export default class MpvPlayer {
                 return this.menuSelected;
             case 11:
                 return this.menuPageId > -1 ? this.menuPageId : 0;
+            case 26:
+                return Number(screen.height >= 2160 && screen.width >= 3840);
             default:
                 console.log('Unknown PSR address:', addr);
                 return 0;

@@ -245,8 +245,9 @@ export default class MpvPlayer {
                             case 'shaderCount':
                                 this.proxy.shaderCount = payload.value;
                                 break;
-                            case 'metadata/by-key/title':
-                                this.proxy.title = payload.value;
+                            case 'media-title':
+                                if (!this.blurayDiscInfo?.discName)
+                                    this.proxy.title = payload.value;
                                 break;
                             case 'sub-delay':
                                 this.proxy.subDelay = Math.round((payload.value + Number.EPSILON) * 10) / 10;
@@ -449,16 +450,23 @@ export default class MpvPlayer {
         if (this.blurayTitle !== 0xFFFF)
             object.cmds.delete();
         
+        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId.toString());
+        
         if (ret === 2) {
-            if (!this.blurayTitle && !this.menuInitiated) {
+            if ((!this.blurayTitle || (!this.menuCallAllow && playlist?.igs.menu.pages.get(0))) && !this.menuInitiated) {
                 this.menuInitiated = true;
                 return this.nextMenuCommand();
             } else if (this.blurayTitle) {
                 this.menuInitiated = false;
+            } else {
+                return this.nextMenuCommand();
             }
             
             return;
         }
+
+        if (playlist)
+            MpvPlayer.destructPlaylist(playlist);
 
         if (ret) return this.nextObjectCommand();
     }
@@ -468,34 +476,24 @@ export default class MpvPlayer {
         this.menuIdx = 0;
     }
 
-    setPageButtons() {
+    async nextMenuCommand(): Promise<void> {
+        
         const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId.toString());
         if (!playlist) throw new Error('Playlist not found');
         
-        const menu = playlist.igs.menu.pages.get(this.menuPageId);
+        const menu = playlist.igs.menu.pages.get(this.menuPageId < 0 ? 0 : this.menuPageId);
         if (!menu) throw new Error('Menu not found');
 
-        this.buttonState = MpvPlayer.vectorToArray(menu.bogs)
-            .map(bog => bog.defButton);
-        MpvPlayer.destructPlaylist(playlist);
-    }
-
-    async nextMenuCommand(): Promise<void> {
         if (this.menuPageId < 0) {
             this.proxy.menuPageId = 0;
-            this.setPageButtons();
+            this.buttonState = MpvPlayer.vectorToArray(menu.bogs)
+                .map(bog => bog.defButton);
         }
-        
-        const playlist = this.blurayDiscInfo?.playlists.get(this.playlistId.toString());
-        if (!playlist) throw new Error('Playlist not found');
-        
-        const menu = playlist.igs.menu.pages.get(this.menuPageId);
-        if (!menu) throw new Error('Menu not found');
 
         const button = menu.buttons.get(this.menuSelected.toString());
         if (!button) throw new Error('Button not found');
             
-        const command = button?.commands.get(this.menuIdx);
+        const command = button.commands.get(this.menuIdx);
         
         if (!command)
             throw new Error('Menu command not found');
@@ -995,7 +993,8 @@ export default class MpvPlayer {
                                 await new Promise(resolve => setTimeout(resolve, duration));
 
                                 if (cmd.src >= 0x80000000) {
-                                    this.setPageButtons();
+                                    this.buttonState = MpvPlayer.vectorToArray(page.bogs)
+                                        .map(bog => bog.defButton);
                                     this.proxy.menuPageId = srcVal
                                 };
 

@@ -118,7 +118,7 @@ int main(int argc, char const *argv[]) {
     mpv_observe_property(mpv, 0, "aid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "sid", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "chapter", MPV_FORMAT_INT64);
-    mpv_observe_property(mpv, 0, "metadata/by-key/title", MPV_FORMAT_STRING);
+    mpv_observe_property(mpv, 0, "media-title", MPV_FORMAT_STRING);
     mpv_observe_property(mpv, 0, "playlist-current-pos", MPV_FORMAT_INT64);
     mpv_observe_property(mpv, 0, "sub-delay", MPV_FORMAT_DOUBLE);
 
@@ -335,8 +335,12 @@ void load_subs_proxy(void* args) {
     if (mount_file(load_file_args->path)) return;
 
     const char *path = load_file_args->path.c_str();
+    string attachments_dir_str = filesystem::path(load_file_args->path)
+        .replace_filename("attachments");
+    const char *attachments_dir = attachments_dir_str.c_str();
 
-    // mpv_set_property_async(mpv, 0, "sub-files", MPV_FORMAT_STRING, &path);
+    if (filesystem::exists(attachments_dir_str))
+        mpv_set_property_async(mpv, 0, "sub-fonts-dir", MPV_FORMAT_STRING, &attachments_dir);
     const char * cmd[] = {"sub-add", load_file_args->path.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
     free(args);

@@ -63,7 +63,14 @@ static igs_t get_menu(uint32_t playlist_id, string path) {
     return igs;
 }
 
-static bluray_playlist_info_t get_playlist_info(const BLURAY_TITLE_INFO *title, string path) {
+typedef struct bd_pl_thread_args_t {
+    uint32_t title_idx;
+    string path;
+    uint8_t bdj_detected;
+    bluray_playlist_info_t playlist;
+} bd_pl_thread_args_t;
+
+static bluray_playlist_info_t get_playlist_info(const BLURAY_TITLE_INFO *title, bd_pl_thread_args_t *bd_pl_args) {
     vector<bluray_clip_info_t> clips(title->clip_count);
     vector<BLURAY_TITLE_MARK> marks(title->marks, title->marks + title->mark_count);
     
@@ -74,14 +81,11 @@ static bluray_playlist_info_t get_playlist_info(const BLURAY_TITLE_INFO *title, 
             title->clips[clip_idx].out_time
         };
 
-    return { title->playlist, clips, marks, get_menu(title->playlist, path) };
+    bluray_playlist_info_t info = { title->playlist, clips, marks };
+    if (!bd_pl_args->bdj_detected)
+        info.igs = get_menu(title->playlist, bd_pl_args->path);
+    return info;
 }
-
-typedef struct bd_pl_thread_args_t {
-    uint32_t title_idx;
-    string path;
-    bluray_playlist_info_t playlist;
-} bd_pl_thread_args_t;
 
 pthread_mutex_t bd_lock;
 
@@ -92,7 +96,7 @@ void* get_playlist_thread(void* args) {
     const BLURAY_TITLE_INFO *title_info = bd_get_title_info(bd, bd_pl_args->title_idx, 0);
     pthread_mutex_unlock(&bd_lock); 
     // printf("Title %u has playlist %u\n", bd_pl_args->title_idx, title_info->playlist);
-    bd_pl_args->playlist = get_playlist_info(title_info, bd_pl_args->path);
+    bd_pl_args->playlist = get_playlist_info(title_info, bd_pl_args);
     printf("Retrieved playlist %u\n", title_info->playlist);
 
     return NULL;
@@ -117,7 +121,7 @@ bluray_disc_info_t open_bd_disc(string path) {
 
     for (uint32_t group_idx = 0; group_idx <= num_playlists / MAX_THREADS; group_idx++) {
         for (uint32_t thread_idx = 0; thread_idx < min((uint32_t)MAX_THREADS, num_playlists - (group_idx * MAX_THREADS)); thread_idx++) {
-            thread_args[thread_idx] = { group_idx * MAX_THREADS + thread_idx, path };
+            thread_args[thread_idx] = { group_idx * MAX_THREADS + thread_idx, path, info->bdj_detected };
             pthread_create(&(threads[thread_idx]), NULL, &get_playlist_thread, &(thread_args[thread_idx]));
         }
 
@@ -140,10 +144,10 @@ bluray_disc_info_t open_bd_disc(string path) {
         title_map.push_back(info->titles[title_idx]->id_ref);
 
     return bluray_disc_info_t {
-        info->disc_name,
+        info->disc_name ? info->disc_name : "Untitled",
         num_playlists,
         playlists,
-        info->first_play_supported,
+        info->first_play_supported && !info->bdj_detected,
         info->first_play->id_ref,
         info->top_menu_supported,
         title_map,

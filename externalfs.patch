@@ -1,0 +1,157 @@
+diff --git a/src/library_wasmfs_externalfs.js b/src/library_wasmfs_externalfs.js
+index a0c1ebd5d..3a6d20caa 100644
+--- a/src/library_wasmfs_externalfs.js
++++ b/src/library_wasmfs_externalfs.js
+@@ -50,10 +50,132 @@ addToLibrary({
+     })
+   },
+ 
++  _wasmfs_externalfs_create_file_handle: function(handle) {
++    return {
++      kind: 'file',
++      name: handle.name,
++      file: handle.file,
++      async getFile() {
++          return this.file;
++      },
++      async queryPermission() {
++        return 'granted';
++      },
++      async requestPermission(descriptor) {
++        return descriptor.mode === 'read' ? 'granted' : 'denied';
++      }
++    }
++  },
++
++  _wasmfs_externalfs_create_directory_handle__deps: [
++    '_wasmfs_externalfs_create_file_handle', '_wasmfs_externalfs_create_directory_handle'
++  ],
++  _wasmfs_externalfs_create_directory_handle: function(handle) {
++    return {
++      kind: 'directory',
++      name: handle.name,
++      children: Object.entries(handle.children).reduce((obj, [name, handle]) => {
++        obj[name] = handle.kind === 'directory' ?
++          __wasmfs_externalfs_create_directory_handle(handle) :
++          __wasmfs_externalfs_create_file_handle(handle);
++        return obj;
++      }, {}),
++      async getDirectoryHandle(name, options) {
++        const handle = this.children[name];
++        if (handle && handle.kind === 'directory') return handle;
++        if (handle) throw new DOMException('Entry is a file.', 'TypeMismatchError');
++        if (options?.create) throw new DOMException('R/W not granted.', 'NotAllowedError');
++        throw new DOMException('Directory not found.', 'NotFoundError');
++      },
++      async getFileHandle(name, options) {
++        const handle = this.children[name];
++        if (handle && handle.kind === 'file') return handle;
++        if (handle) throw new DOMException('Entry is a directory.', 'TypeMismatchError');
++        if (options?.create) throw new DOMException('R/W not granted.', 'NotAllowedError');
++        throw new DOMException('File not found.', 'NotFoundError');
++      },
++      async resolve(possibleDescendant) {
++        for (const handle of Object.values(this.children)) {
++          if (handle === possibleDescendant)
++            return [handle.name];
++          if (handle instanceof FileSystemDirectoryHandle) {
++            const path = await handle.resolve(possibleDescendant);
++            if (path) return [this.name, ...path];
++          }
++        }
++        return null;
++      },
++      keys() {
++        const keys = Object.keys(this.children);
++        let i = 0;
++        return {
++          async *[Symbol.asyncIterator]() {
++            let i = 0;
++            while (i < keys.length)
++              yield keys[i++];
++          },
++          next: async () => {
++            if ( i < keys.length ) {
++              return {value: keys[i++], done: false};
++            } else {
++              return {value: undefined, done: true};
++            }
++          },
++        };
++      },
++      values() {
++        const keys = Object.values(this.children);
++        let i = 0;
++        return {
++          async *[Symbol.asyncIterator]() {
++            let i = 0;
++            while (i < keys.length)
++              yield keys[i++];
++          },
++          next: async () => {
++            if ( i < keys.length ) {
++              return {value: keys[i++], done: false};
++            } else {
++              return {value: undefined, done: true};
++            }
++          },
++        };
++      },
++      entries() {
++        const keys = Object.entries(this.children);
++        let i = 0;
++        return {
++          async *[Symbol.asyncIterator]() {
++            let i = 0;
++            while (i < keys.length)
++              yield keys[i++];
++          },
++          next: async () => {
++            if ( i < keys.length ) {
++              return {value: keys[i++], done: false};
++            } else {
++              return {value: undefined, done: true};
++            }
++          },
++        };
++      },
++      [Symbol.asyncIterator]() {
++        return this.entries();
++      },
++      async queryPermission() {
++        return 'granted';
++      },
++      async requestPermission(descriptor) {
++        return descriptor.mode === 'read' ? 'granted' : 'denied';
++      }
++    }
++  },
++
+   _wasmfs_externalfs_init_root_directory__deps: [
+     '$wasmfsExternalFSDirectoryHandles', '$wasmfsExternalFSProxyFinish',
+     '_wasmfs_externalfs_get_object_store', '_wasmfs_externalfs_key_exists',
+-    '_wasmfs_externalfs_get_key'
++    '_wasmfs_externalfs_get_key',
++    '_wasmfs_externalfs_create_file_handle', '_wasmfs_externalfs_create_directory_handle'
+   ],
+   _wasmfs_externalfs_init_root_directory: async function(ctx, directoryNamePtr, successPtr) {
+     // Closure compiler errors on this as it does not recognize the OPFS
+@@ -73,9 +195,16 @@ addToLibrary({
+ 
+     const store = await __wasmfs_externalfs_get_object_store();
+     const keyExists = await __wasmfs_externalfs_key_exists(store, directoryName);
+-    if (!keyExists) return wasmfsExternalFSProxyFinish(ctx);
++    const handle = await (keyExists ?
++      __wasmfs_externalfs_get_key(store, directoryName) :
++      new Promise((resolve, reject) => {
++        self.postMessage('ACTIVE');
++        self.onmessage = e => {
++          resolve(__wasmfs_externalfs_create_directory_handle(e.data));
++        }
++        setTimeout(3000, reject);
++      }));
+ 
+-    const handle = await __wasmfs_externalfs_get_key(store, directoryName);
+     if (!handle) return wasmfsExternalFSProxyFinish(ctx);
+ 
+     const permission = await handle.queryPermission({ mode: 'read' });

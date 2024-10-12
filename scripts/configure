@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# git apply --unsafe-paths --directory "$EMSDK/upstream/emscripten" fetchfs.patch
+git apply --unsafe-paths --directory "$EMSDK/upstream/emscripten" externalfs.patch
 
 case "$PKG_CONFIG_PATH" in
     '')

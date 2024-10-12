@@ -88,16 +88,22 @@ const Header = ({ openHeader, setHideHeader }: HeaderProps) => {
                     <h2>Uploading {player.uploading}</h2>
                 </Paper>
             </Modal>
-            <FileExplorer onFileClick={path => {
+            { !player.mpvPlayer.altMobile && 
+            <FileExplorer onFileClick={async path => {
                 if (!path.length) return;
+
                 player.mpvPlayer?.module.loadFile(path, '');
+
                 player.setTitle(path);
                 setHideHeader(true);
                 if (!player.isPlaying)
                     player.mpvPlayer?.module.togglePlay();
                 setOpenFileExplorer(false);
-            }} openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} />
-            <div className='navbar' onClick={() => setOpenFileExplorer(true)}>
+            }} openFileExplorer={openFileExplorer} setOpenFileExplorer={setOpenFileExplorer} /> }
+            <div className='navbar' onClick={() => 
+                player.mpvPlayer?.alt && player.mpvPlayer.altMobile ? 
+                    player.mpvPlayer.mountFileAlt() :
+                    setOpenFileExplorer(true)}>
                 <span>Open</span>
             </div>
             {/* <div className='navbar' ref={openUrlRef} style={

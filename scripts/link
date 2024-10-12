@@ -4,12 +4,28 @@ set -e
 
 npm ln
 
-if ! [ -d "demo/node_modules/libmpv-wasm" ]; then
-    cd demo
-    npm ln libmpv-wasm
+if ! [ -d "node_modules/filesystem-api-wrapper" ]; then
+    npm ln filesystem-api-wrapper
 fi
 
-if ! [ -d "demo-vanilla/node_modules/libmpv-wasm" ]; then
-    cd ../demo-vanilla
+cd demo
+
+LINK=""
+
+if ! [ -d "node_modules/libmpv-wasm" ]; then
+    LINK="libmpv-wasm"
+fi
+
+if ! [ -d "node_modules/filesystem-api-wrapper" ]; then
+    LINK="${LINK} filesystem-api-wrapper"
+fi
+
+if ! [ -z "${LINK}" ]; then
+    npm ln libmpv-wasm filesystem-api-wrapper
+fi
+
+cd ../demo-vanilla
+
+if ! [ -d "node_modules/libmpv-wasm" ]; then
     npm ln libmpv-wasm
 fi

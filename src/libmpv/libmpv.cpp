@@ -1,59 +1,4 @@
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-#include <mpv/client.h>
-#include <mpv/render_gl.h>
-
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_video.h>
-#include <SDL3/SDL_events.h>
-
-#include <emscripten.h>
-#include <emscripten/bind.h>
-#include <emscripten/threading.h>
-#include <emscripten/wasmfs.h>
-#include <emscripten/proxying.h>
-
-#include <filesystem>
-#include <iostream>
-#include <string>
-
-#include <AL/al.h>
-#include <AL/alc.h>
-
-#include "thumbnail.h"
-#include "libbluray.h"
-
-using namespace emscripten;
-using namespace std;
-
-static Uint32 wakeup_on_mpv_render_update, wakeup_on_mpv_events;
-int width = 1920;
-int height = 1080;
-int64_t video_width = 1920;
-int64_t video_height = 1080;
-SDL_Window *window;
-mpv_handle *mpv;
-mpv_render_context *mpv_gl;
-pthread_t main_thread;
-pthread_t side_thread;
-bluray_disc_info_t disc_info;
-em_proxying_queue* main_queue = em_proxying_queue_create();
-
-void main_loop();
-void create_mpv_map_obj(mpv_node_list *map);
-int get_shader_count();
-void get_tracks();
-void get_chapters();
-static void *get_proc_address_mpv(void *fn_ctx, const char *name);
-static void on_mpv_events(void *ctx);
-static void on_mpv_render_update(void *ctx);
-intptr_t get_main_thread();
-void die(const char *msg);
-void quit();
-
-void func() {}
+#include "libmpv.h"
 
 void* loop(void* args) {
     emscripten_set_main_loop(func, 0, 1);
@@ -288,42 +233,41 @@ void main_loop() {
     }
 }
 
-int mount_file(filesystem::path path) {
-    string root_name = *next(path.begin());
-    string root_path = "/" + root_name;
-    
-    if (!filesystem::is_directory(root_path)) {
-        backend_t backend = wasmfs_create_externalfs_backend(root_name.c_str());
-        int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
+void mount_directory_proxy(void* args) {
+    std::string path = *(std::string*)args;
+    printf("path: %s\n", path.c_str());
+    if (!std::filesystem::is_directory(path)) {
+        backend_t backend = wasmfs_create_externalfs_backend(path.c_str());
+        int err = wasmfs_create_directory(path.c_str(), 0777, backend);
         if (err) {
-            fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
-            return 1;
+            fprintf(stderr, "Couldn't mount directory at %s\n", path.c_str());
+            return;
         }
     }
-    
-    if (!filesystem::exists(path)) {
-        fprintf(stderr, "file does not exist\n");
-        return 1;
-    }
+    free(args);
+}
 
-    return 0;
+uint32_t mount_directory(std::string path) {
+    std::string *path_ptr = (std::string *)malloc(sizeof(path));
+    *path_ptr = path;
+    return (uint32_t)emscripten_proxy_promise(main_queue, side_thread, mount_directory_proxy, path_ptr);
 }
 
 typedef struct {
-    string path;
-    string options;
+    std::string path;
+    std::string options;
 } load_file_args_t;
 
 void load_file_proxy(void* args) {
     load_file_args_t* load_file_args = (load_file_args_t*)args;
-    if (mount_file(load_file_args->path)) return;
+    if (!std::filesystem::exists(load_file_args->path)) return;
 
     const char * cmd[] = {"loadfile", load_file_args->path.c_str(), "replace", "0", load_file_args->options.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
     free(args);
 }
 
-void load_file(string path, string options) {
+void load_file(std::string path, std::string options) {
     load_file_args_t* args_ptr = (load_file_args_t*)malloc(sizeof(load_file_args_t));
     args_ptr->path = path;
     args_ptr->options = options;
@@ -332,21 +276,21 @@ void load_file(string path, string options) {
 
 void load_subs_proxy(void* args) {
     load_file_args_t* load_file_args = (load_file_args_t*)args;
-    if (mount_file(load_file_args->path)) return;
+    if (!std::filesystem::exists(load_file_args->path)) return;
 
     const char *path = load_file_args->path.c_str();
-    string attachments_dir_str = filesystem::path(load_file_args->path)
+    std::string attachments_dir_str = std::filesystem::path(load_file_args->path)
         .replace_filename("attachments");
     const char *attachments_dir = attachments_dir_str.c_str();
 
-    if (filesystem::exists(attachments_dir_str))
+    if (std::filesystem::exists(attachments_dir_str))
         mpv_set_property_async(mpv, 0, "sub-fonts-dir", MPV_FORMAT_STRING, &attachments_dir);
     const char * cmd[] = {"sub-add", load_file_args->path.c_str(), NULL};
     mpv_command_async(mpv, 0, cmd);
     free(args);
 }
 
-void load_subs(string path) {
+void load_subs(std::string path) {
     load_file_args_t* args_ptr = (load_file_args_t*)malloc(sizeof(load_file_args_t));
     args_ptr->path = path;
     args_ptr->options = "";
@@ -354,21 +298,9 @@ void load_subs(string path) {
 }
 
 void open_disc_proxy(void* args) {
-    filesystem::path path = *(string*)args;
-    string root_name = *next(path.begin());
-    string root_path = "/" + root_name;
+    std::string path = *(std::string*)args;
     
-    if (!filesystem::is_directory(root_path)) {
-        printf("mounting directory at %s\n", root_path.c_str());
-        backend_t backend = wasmfs_create_externalfs_backend(root_name.c_str());
-        int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
-        if (err) {
-            fprintf(stderr, "Couldn't mount directory at %s\n", root_path.c_str());
-            return;
-        }
-    }
-    
-    if (!filesystem::is_directory(path)) {
+    if (!std::filesystem::is_directory(path)) {
         fprintf(stderr, "%s is not a directory\n", path.c_str());
         return;
     }
@@ -377,8 +309,8 @@ void open_disc_proxy(void* args) {
     free(args);
 }
 
-uint32_t open_disc(string path) {
-    string* path_ptr = (string*)malloc(sizeof(string));
+uint32_t open_disc(std::string path) {
+    std::string* path_ptr = (std::string*)malloc(sizeof(std::string));
     *path_ptr = path;
 
     return (uint32_t)emscripten_proxy_promise(main_queue, side_thread, open_disc_proxy, path_ptr);
@@ -388,11 +320,11 @@ bluray_disc_info_t get_disc_info() {
     return disc_info;
 }
 
-void load_files(vector<string> paths) {
+void load_files(vector<std::string> paths) {
     // printf("loading %lu paths\n", paths.size());
 
     for (auto path : paths) {
-        if (!filesystem::exists(path))
+        if (!std::filesystem::exists(path))
             fprintf(stderr, "%s does not exist\n", path.c_str());
 
         const char * cmd[] = {"loadfile", path.c_str(), "append-play", NULL};
@@ -401,12 +333,12 @@ void load_files(vector<string> paths) {
 }
 
 // void load_url_proxy(void* args) {
-//     string url = *(string*)args;
-//     filesystem::path path = url.substr(url.find("/") + 1);
-//     string root_path = "/" + string(*next(path.begin()));
-//     string root_url = "http://localhost:5000/proxy/" + url.substr(0, url.find("/", url.find("//") + 2));
+//     std::string url = *(std::string*)args;
+//     std::filesystem::path path = url.substr(url.find("/") + 1);
+//     std::string root_path = "/" + std::string(*next(path.begin()));
+//     std::string root_url = "http://localhost:5000/proxy/" + url.substr(0, url.find("/", url.find("//") + 2));
     
-//     if (!filesystem::is_directory(root_path)) {
+//     if (!std::filesystem::is_directory(root_path)) {
 //         printf("mounting directory at %s\n", root_path.c_str());
 //         backend_t backend = wasmfs_create_fetchfs_backend(root_url.c_str());
 //         int err = wasmfs_create_directory(root_path.c_str(), 0777, backend);
@@ -418,7 +350,7 @@ void load_files(vector<string> paths) {
 
 //     ifstream(path, ios::binary);
 
-//     // if (!filesystem::exists(path)) {
+//     // if (!std::filesystem::exists(path)) {
 //     //     fprintf(stderr, "file does not exist\n");
 //     //     return;
 //     // }
@@ -428,15 +360,15 @@ void load_files(vector<string> paths) {
 //     free(args);
 // }
 
-// void load_url(string url) {
+// void load_url(std::string url) {
 //     printf("loading %s\n", url.c_str());
     
-//     if (url.find("http://") + url.find("https://") < string::npos) {
+//     if (url.find("http://") + url.find("https://") < std::string::npos) {
 //         fprintf(stderr, "unsupported protocol\n");
 //         return;
 //     }
 
-//     string* url_ptr = (string*)malloc(sizeof(string));
+//     std::string* url_ptr = (std::string*)malloc(sizeof(std::string));
 //     *url_ptr = url;
 
 //     emscripten_proxy_async(main_queue, side_thread, load_url_proxy, url_ptr);
@@ -564,13 +496,19 @@ void quit() {
 
 void match_window_screen_size() {
     emscripten_get_screen_size(&width, &height);
-        
-    double aspect_ratio = (double)video_height / video_width;
-    int new_height = height;
-    if (aspect_ratio != (double)height / width)
-        new_height = aspect_ratio * width;
 
-    SDL_SetWindowSize(window, width, new_height);
+    if (width / height < 1) {
+        int placeholder = height;
+        height = width;
+        width = placeholder;
+    }
+        
+    // double aspect_ratio = (double)video_height / video_width;
+    // int new_height = height;
+    // if (aspect_ratio != (double)height / width)
+    //     new_height = aspect_ratio * width;
+
+    SDL_SetWindowSize(window, width, height);
 
     // printf("video: %lldx%lld -> screen: %dx%d = canvas: %dx%d\n", video_width, video_height, width, height, width, new_height);
 }
@@ -629,16 +567,16 @@ void create_mpv_map_obj(mpv_node_list *map) {
 }
 
 void *thumbnail_thread_gen(void *args) {
-    string *path_ptr = (string *)(args);
+    std::string *path_ptr = (std::string *)(args);
     generate_thumbnail(path_ptr, 15);
     free(args);
 
     return NULL;
 }
 
-void create_thumbnail_thread(string path) {
+void create_thumbnail_thread(std::string path) {
     pthread_t thumbnail_thread;
-    string *path_ptr = (string *)malloc(sizeof(path));
+    std::string *path_ptr = (std::string *)malloc(sizeof(path));
     *path_ptr = path;
     pthread_create(&thumbnail_thread, NULL, thumbnail_thread_gen, path_ptr);
 }
@@ -649,8 +587,9 @@ void die(const char *msg) {
 }
 
 EMSCRIPTEN_BINDINGS(libmpv) {
-    register_vector<string>("StringVector");
+    emscripten::register_vector<std::string>("StringVector");
 
+    emscripten::function("mountDirectory", &mount_directory);
     emscripten::function("loadFile", &load_file);
     emscripten::function("loadFiles", &load_files);
     emscripten::function("loadSubs", &load_subs);
@@ -676,26 +615,26 @@ EMSCRIPTEN_BINDINGS(libmpv) {
     emscripten::function("subDelayUp", &sub_delay_up);
     emscripten::function("subDelayDown", &sub_delay_down);
 
-    register_vector<uint16_t>("UInt16Vector");
-    register_vector<uint32_t>("UInt32Vector");
-    register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
-    register_vector<bluray_mobj_object_t>("MobjObjectVector");
-    register_vector<effect_object_t>("EffectObjectVector");
-    register_vector<effect_t>("EffectVector");
-    register_vector<bog_t>("BogVector");
-    register_vector<page_t>("PageVector");
-    register_vector<color_t>("ColorVector");
-    register_vector<vector<color_t>>("PaletteVector");
-    register_vector<BLURAY_TITLE_MARK>("BlurayTitleMarkVector");
-    register_vector<bluray_clip_info_t>("BlurayClipInfoVector");
+    emscripten::register_vector<uint16_t>("UInt16Vector");
+    emscripten::register_vector<uint32_t>("UInt32Vector");
+    emscripten::register_vector<bluray_mobj_cmd_t>("MobjCmdVector");
+    emscripten::register_vector<bluray_mobj_object_t>("MobjObjectVector");
+    emscripten::register_vector<effect_object_t>("EffectObjectVector");
+    emscripten::register_vector<effect_t>("EffectVector");
+    emscripten::register_vector<bog_t>("BogVector");
+    emscripten::register_vector<page_t>("PageVector");
+    emscripten::register_vector<color_t>("ColorVector");
+    emscripten::register_vector<vector<color_t>>("PaletteVector");
+    emscripten::register_vector<BLURAY_TITLE_MARK>("BlurayTitleMarkVector");
+    emscripten::register_vector<bluray_clip_info_t>("BlurayClipInfoVector");
 
-    register_map<string, window_t>("WindowMap");
-    register_map<string, string>("StringMap");
-    register_map<string, picture_extended_t>("PictureMap");
-    register_map<string, button_t>("ButtonMap");
-    register_map<string, bluray_playlist_info_t>("BlurayPlaylistMap");
+    emscripten::register_map<std::string, window_t>("WindowMap");
+    emscripten::register_map<std::string, std::string>("StringMap");
+    emscripten::register_map<std::string, picture_extended_t>("PictureMap");
+    emscripten::register_map<std::string, button_t>("ButtonMap");
+    emscripten::register_map<std::string, bluray_playlist_info_t>("BlurayPlaylistMap");
 
-    value_object<bluray_hdmv_insn_t>("HdmvInsn")
+    emscripten::value_object<bluray_hdmv_insn_t>("HdmvInsn")
         .field("opCnt", &bluray_hdmv_insn_t::op_cnt)
         .field("grp", &bluray_hdmv_insn_t::grp)
         .field("subGrp", &bluray_hdmv_insn_t::sub_grp)
@@ -705,34 +644,34 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("cmpOpt", &bluray_hdmv_insn_t::cmp_opt)
         .field("setOpt", &bluray_hdmv_insn_t::set_opt);
 
-    value_object<bluray_mobj_cmd_t>("MobjCmd")
+    emscripten::value_object<bluray_mobj_cmd_t>("MobjCmd")
         .field("insn", &bluray_mobj_cmd_t::insn)
         .field("dst", &bluray_mobj_cmd_t::dst)
         .field("src", &bluray_mobj_cmd_t::src);
 
-    value_object<bluray_mobj_object_t>("MobjObject")
+    emscripten::value_object<bluray_mobj_object_t>("MobjObject")
         .field("resumeIntentionFlag", &bluray_mobj_object_t::resume_intention_flag)
         .field("menuCallMask", &bluray_mobj_object_t::menu_call_mask)
         .field("titleSearchMask", &bluray_mobj_object_t::title_search_mask)
         .field("numCmds", &bluray_mobj_object_t::num_cmds)
         .field("cmds", &bluray_mobj_object_t::cmds);
 
-    value_object<bluray_mobj_objects_t>("MobjObjects")
+    emscripten::value_object<bluray_mobj_objects_t>("MobjObjects")
         .field("mobjVersion", &bluray_mobj_objects_t::mobj_version)
         .field("numObjects", &bluray_mobj_objects_t::num_objects)
         .field("objects", &bluray_mobj_objects_t::objects);
 
-    value_object<button_navigation_t>("ButtonNavigation")
+    emscripten::value_object<button_navigation_t>("ButtonNavigation")
         .field("up", &button_navigation_t::up)
         .field("down", &button_navigation_t::down)
         .field("left", &button_navigation_t::left)
         .field("right", &button_navigation_t::right);
 
-    value_object<button_state_t>("ButtonState")
+    emscripten::value_object<button_state_t>("ButtonState")
         .field("start", &button_state_t::start)
         .field("stop", &button_state_t::stop);
 
-    value_object<button_t>("Button")
+    emscripten::value_object<button_t>("Button")
         .field("buttonId", &button_t::button_id)
         .field("v", &button_t::v)
         .field("f", &button_t::f)
@@ -748,35 +687,35 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("cmdsCount", &button_t::cmds_count)
         .field("commands", &button_t::commands);
 
-    value_object<bog_t>("Bog")
+    emscripten::value_object<bog_t>("Bog")
         .field("defButton", &bog_t::def_button)
         .field("buttonCount", &bog_t::button_count)
         .field("buttonIds", &bog_t::button_ids);
 
-    value_object<window_t>("Window")
+    emscripten::value_object<window_t>("Window")
         .field("id", &window_t::id)
         .field("x", &window_t::x)
         .field("y", &window_t::y)
         .field("width", &window_t::width)
         .field("height", &window_t::height);
 
-    value_object<effect_object_t>("EffectObject")
+    emscripten::value_object<effect_object_t>("EffectObject")
         .field("id", &effect_object_t::id)
         .field("window", &effect_object_t::window)
         .field("x", &effect_object_t::x)
         .field("y", &effect_object_t::y);
 
-    value_object<effect_t>("Effect")
+    emscripten::value_object<effect_t>("Effect")
         .field("duration", &effect_t::duration)
         .field("palette", &effect_t::palette)
         .field("objectCount", &effect_t::object_count)
         .field("objects", &effect_t::objects);
 
-    value_object<effect_sequence_t>("EffectSequence")
+    emscripten::value_object<effect_sequence_t>("EffectSequence")
         .field("windows", &effect_sequence_t::windows)
         .field("effects", &effect_sequence_t::effects);
 
-    value_object<page_t>("Page")
+    emscripten::value_object<page_t>("Page")
         .field("id", &page_t::id)
         .field("uo", &page_t::uo)
         .field("inEffects", &page_t::in_effects)
@@ -789,31 +728,31 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("bogs", &page_t::bogs)
         .field("buttons", &page_t::buttons);
 
-    value_object<menu_t>("Menu")
+    emscripten::value_object<menu_t>("Menu")
         .field("width", &menu_t::width)
         .field("height", &menu_t::height)
         .field("pageCount", &menu_t::page_count)
         .field("pages", &menu_t::pages);
 
-    value_object<color_t>("Color")
+    emscripten::value_object<color_t>("Color")
         .field("id", &color_t::id)
         .field("r", &color_t::r)
         .field("g", &color_t::g)
         .field("b", &color_t::b)
         .field("alpha", &color_t::alpha);
 
-    value_object<picture_extended_t>("Picture")
+    emscripten::value_object<picture_extended_t>("Picture")
         .field("id", &picture_extended_t::id)
         .field("width", &picture_extended_t::width)
         .field("height", &picture_extended_t::height)
         .field("data", &picture_extended_t::data);
 
-    value_object<igs_t>("Igs")
+    emscripten::value_object<igs_t>("Igs")
         .field("menu", &igs_t::menu)
         .field("palettes", &igs_t::palettes)
         .field("pictures", &igs_t::pictures);
 
-    value_object<BLURAY_TITLE_MARK>("BlurayTitleMark")
+    emscripten::value_object<BLURAY_TITLE_MARK>("BlurayTitleMark")
         .field("idx", &BLURAY_TITLE_MARK::idx)
         .field("type", &BLURAY_TITLE_MARK::type)
         .field("start", &BLURAY_TITLE_MARK::start)
@@ -821,17 +760,17 @@ EMSCRIPTEN_BINDINGS(libmpv) {
         .field("offset", &BLURAY_TITLE_MARK::offset)
         .field("clipRef", &BLURAY_TITLE_MARK::clip_ref);
 
-    value_object<bluray_clip_info_t>("BlurayClipInfo")
+    emscripten::value_object<bluray_clip_info_t>("BlurayClipInfo")
         .field("clipId", &bluray_clip_info_t::clip_id)
         .field("inTime", &bluray_clip_info_t::in_time)
         .field("outTime", &bluray_clip_info_t::out_time);
 
-    value_object<bluray_playlist_info_t>("BlurayPlaylistInfo")
+    emscripten::value_object<bluray_playlist_info_t>("BlurayPlaylistInfo")
         .field("clips", &bluray_playlist_info_t::clips)
         .field("marks", &bluray_playlist_info_t::marks)
         .field("igs", &bluray_playlist_info_t::igs);
 
-    value_object<bluray_disc_info_t>("BlurayDiscInfo")
+    emscripten::value_object<bluray_disc_info_t>("BlurayDiscInfo")
         .field("discName", &bluray_disc_info_t::disc_name)
         .field("numPlaylists", &bluray_disc_info_t::num_playlists)
         .field("firstPlaySupported", &bluray_disc_info_t::first_play_supported)

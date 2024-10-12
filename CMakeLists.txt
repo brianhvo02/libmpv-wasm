@@ -24,15 +24,15 @@ link_directories(
 )
 
 set(SOURCES src/libmpv/thumbnail.cpp src/libmpv/libbluray.cpp src/libmpv/igs_reader.cpp src/libmpv/base64.cpp)
-set(HEADERS include/thumbnail.h include/libbluray.h include/igs_reader.h include/base64.h)
+set(HEADERS include/libmpv.h include/thumbnail.h include/libbluray.h include/igs_reader.h include/base64.h)
 add_executable(libmpv src/libmpv/libmpv.cpp ${SOURCES} ${HEADERS})
 
 set(CMAKE_EXECUTABLE_SUFFIX ".js")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal -lexternalfs.js --preload-file ../shaders@/shaders --preload-file ../mpv@/mpv --emit-tsd libmpv.d.ts \
+set_target_properties(libmpv PROPERTIES LINK_FLAGS "-lembind -lopenal -lexternalfs.js -ljsfilefs.js --preload-file ../shaders@/shaders --preload-file ../mpv@/mpv --emit-tsd libmpv.d.ts \
 -sUSE_PTHREADS -sPROXY_TO_PTHREAD -sPTHREAD_POOL_SIZE=20 -sWASMFS -sMODULARIZE -sINITIAL_MEMORY=3GB -sOFFSCREENCANVAS_SUPPORT \
--sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread','ExternalFS','getPromise'] -sEXPORT_NAME='libmpvLoader'")
+-sFULL_ES3 -sWASM_BIGINT -sENVIRONMENT=web,worker -sEXPORTED_RUNTIME_METHODS=['PThread','ExternalFS','getPromise','JSFILEFS'] -sEXPORT_NAME='libmpvLoader'")
 set_target_properties(libmpv PROPERTIES COMPILE_FLAGS "-sUSE_PTHREADS")
 
 add_definitions(

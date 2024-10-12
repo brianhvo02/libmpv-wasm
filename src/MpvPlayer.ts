@@ -2,6 +2,7 @@ import libmpvLoader, { BlurayDiscInfo, BlurayPlaylistInfo, MobjCmd } from './lib
 import _ from 'lodash';
 import { getRandom, isAudioTrack, isVideoTrack, loadImage } from './utils';
 import { MainModule } from './libmpv.js';
+import { showOpenFilePicker, showDirectoryPicker as showDirectoryPickerAlt, FileSystemDirectoryHandle as FakeFileSystemDirectoryHandle } from 'filesystem-api-wrapper/dist';
 
 type ProxyHandle<K, V> = (this: MpvPlayer, value: V, key: K) => void;
 interface ProxyOptions {
@@ -56,7 +57,6 @@ const isMpvPlayerProperty = (prop: string | symbol): prop is keyof MpvPlayer => 
 export default class MpvPlayer {
     module: MainModule;
 
-    fsWorker: Worker | null = null;
     mpvWorker: Worker | null = null;
 
     fileEnd = false;
@@ -108,6 +108,9 @@ export default class MpvPlayer {
     shaderCount = -1;
     extSubLoaded = false;
     subDelay = 0;
+
+    alt = typeof(showDirectoryPicker) === 'undefined';
+    altMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     proxy: MpvPlayer;
 
@@ -319,33 +322,63 @@ export default class MpvPlayer {
         this.mpvWorker.addEventListener('message', listener);
     }
 
-    getDirectories = (): Promise<FileSystemDirectoryHandle[]> => 
-        this.module.ExternalFS.getAllStoredHandles();
-
-    async uploadFiles(path: string, files?: File[]) {
-        if (!this.fsWorker)
-            throw new Error('File system worker not initialized.');
-
-        const pickedFiles = files ?? await showOpenFilePicker({ multiple: true })
-            .then(files => Promise.all(files.map(file => file.getFile())))
-            .catch(e => console.error(e));
-
-        if (!pickedFiles?.length)
-            return;
-
-        this.proxy.uploading = pickedFiles[0].name;
-        this.fsWorker.postMessage({ path, files: pickedFiles });
+    async getDirectories(): Promise<FileSystemDirectoryHandle[]> {
+        const handles: FileSystemDirectoryHandle[] = await this.module.ExternalFS.getAllStoredHandles();
+        handles.forEach(handle => this.module.mountDirectory(handle.name));
+        return handles;
     }
 
-    async mountFolder(): Promise<Record<string, FileSystemDirectoryHandle>> {
-        const directoryHandle = await showDirectoryPicker()
+    async mountFolder(alt: boolean, currentDir?: FakeFileSystemDirectoryHandle)
+        : Promise<Record<string, FileSystemDirectoryHandle | FakeFileSystemDirectoryHandle>> {
+        const directoryHandle = await (alt ? showDirectoryPickerAlt : showDirectoryPicker)()
             .catch(e => console.error(e));
         
-        if (!directoryHandle)
+        if (!directoryHandle || directoryHandle.name === 'root')
             return {};
 
-        const name: string = await this.module.ExternalFS.addDirectory(directoryHandle)
+        const name: string = directoryHandle instanceof FileSystemDirectoryHandle ?
+            await this.module.ExternalFS.addDirectory(directoryHandle)
+            : await (async () => {
+                const workerPromise = !this.alt || this.getWorker();
+                const promiseId = this?.module.mountDirectory(directoryHandle.name);
+                if (workerPromise !== true) {
+                    const worker = await workerPromise;
+                    worker.postMessage(directoryHandle);
+                }
+
+                await this.module.getPromise(promiseId);
+                return directoryHandle.name;
+            })()
         return { [name]: directoryHandle };
+    }
+
+    async getWorker(): Promise<Worker> {
+        return new Promise(resolve => {
+            this.module.PThread.unusedWorkers.forEach((worker: Worker) => {
+                worker.onmessage = e => {
+                    if (e.data === 'ACTIVE') {
+                        resolve(worker);
+                        this.module.PThread.unusedWorkers.forEach((worker: Worker) => {
+                            worker.onmessage = (e) => {
+                                console.log(e.data);
+                            };
+                        });
+                    }
+                };
+            });
+        })
+    }
+
+    async mountFileAlt() {
+        const [handle] = await showOpenFilePicker();
+        const rootDir = new FakeFileSystemDirectoryHandle('_root');
+        rootDir.addChildHandle(handle);
+        const workerPromise = this.getWorker();
+        const promiseId = this?.module.mountDirectory('_root');
+        const worker = await workerPromise;
+        worker.postMessage(rootDir);
+        await this.module.getPromise(promiseId);
+        this.module.loadFile('/_root/' + handle.name, '');
     }
 
     getMemoryValue(addr: number) {
@@ -1128,15 +1161,15 @@ export default class MpvPlayer {
         this.playItemId = 0;
 
         this.menuPictures = {};
-        this.menuActivated = false;
-        this.menuSelected = 0;
-        this.menuPageId = -1;
-        this.buttonState = [];
         this.menuCallAllow = false;
         this.hasPopupMenu = false;
         this.menuInitiated = false;
 
         this.resumeInfo = null;
+        this.extSubLoaded = false;
+        this.subDelay = 0;
+
+        this.resetMenu();
     }
 
     async loadBluray(path: string) {

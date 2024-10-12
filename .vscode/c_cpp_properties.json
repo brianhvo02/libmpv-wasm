@@ -2,9 +2,9 @@
     "env": {
         "includePath": [
             "${workspaceFolder}/**",
-            "${EMSDK}/upstream/emscripten/cache/sysroot/**",
-            "${workspaceFolder}/build_libs/**",
-            "${workspaceFolder}/include/**",
+            "${EMSDK}/upstream/emscripten/system/include/**",
+            "${workspaceFolder}/build_libs/include/**",
+            "${workspaceFolder}/include/**"
         ]
     },
     "configurations": [
@@ -12,10 +12,10 @@
             "name": "Linux",
             "includePath": ["${includePath}"],
             "defines": [],
-            "compilerPath": "/usr/bin/clang-15",
+            "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "linux-clang-x64"
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64"
         },
         {
             "name": "Mac",

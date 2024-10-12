@@ -1,8 +1,9 @@
-import { Dispatch, SetStateAction, useContext, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
 import './FileExplorer.scss';
 import { Avatar, Box, Button, CircularProgress, IconButton, List, ListItem, ListItemAvatar, ListItemButton, ListItemText, Modal, Paper, SxProps, Theme } from '@mui/material';
 import { Folder, Delete, FilePresent } from '@mui/icons-material';
 import { PlayerContext } from '../MpvPlayerHooks';
+import { FileSystemFileHandle as FakeFileSystemFileHandle, FileSystemDirectoryHandle as FakeFileSystemDirectoryHandle } from 'filesystem-api-wrapper/dist';
 
 const boxStyle: SxProps<Theme> = {
     position: 'absolute',
@@ -38,22 +39,25 @@ interface FileExplorerProps {
     setOpenFileExplorer: Dispatch<SetStateAction<boolean>>;
 }
 
-type FileTree = Record<string, FileSystemDirectoryHandle | FileSystemFileHandle>;
+type FileTree = Record<string, FileSystemDirectoryHandle | FileSystemFileHandle | FakeFileSystemDirectoryHandle | FakeFileSystemFileHandle>;
 
 const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: FileExplorerProps) => {
     const player = useContext(PlayerContext);
 
-    const [history, setHistory] = useState<FileSystemDirectoryHandle[]>([]);
+    const [history, setHistory] = useState<(FileSystemDirectoryHandle | FakeFileSystemDirectoryHandle)[]>([]);
     const [path, setPath] = useState('/');
-    const [rootTree, setRootTree] = useState<Record<string, FileSystemDirectoryHandle>>({});
+    const [rootTree, setRootTree] = useState<Record<string, FileSystemDirectoryHandle | FakeFileSystemDirectoryHandle>>({});
     const [tree, setTree] = useState<FileTree>({});
     const [loading, setLoading] = useState(false);
+    const fetchedDirectories = useRef<boolean>(false);
 
     useEffect(() => {
-        player?.mpvPlayer?.getDirectories().then(directories => {
+        if (!player?.mpvPlayer || fetchedDirectories.current) return
+        player.mpvPlayer.getDirectories().then(directories => {
             const tree = Object.fromEntries(directories.map(handle => [handle.name, handle]));
             setRootTree(tree);
         });
+        fetchedDirectories.current = true;
     }, [player?.mpvPlayer]);
 
     useEffect(() => {
@@ -70,6 +74,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
         
         Promise.all([
             Array.fromAsync(parent.keys()),
+            // @ts-ignore
             Array.fromAsync(parent.values()),
         ]).then(async ([names, handles]) => {
             const newTree: FileTree = {};
@@ -145,7 +150,7 @@ const FileExplorer = ({ onFileClick, openFileExplorer, setOpenFileExplorer }: Fi
                     )) }
                 </List>
                 <div className='footer'>
-                    <Button onClick={() => player?.mpvPlayer?.mountFolder()
+                    <Button onClick={() => player?.mpvPlayer?.mountFolder(player.mpvPlayer.alt)
                         .then(res => setRootTree(prev => ({ ...prev, ...res })))
                     } variant='contained'>Mount Folder</Button>
                     <Button onClick={async () => {
